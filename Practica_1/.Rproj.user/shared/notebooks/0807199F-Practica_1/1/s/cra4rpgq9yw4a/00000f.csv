@@ -1,0 +1,2 @@
+"0","library(knitr)"
+"0","kable(summary(coffee_ratings_or))"

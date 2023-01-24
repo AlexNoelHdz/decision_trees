@@ -1,0 +1,4 @@
+"0","library(knitr)"
+"0","knitr::opts_chunk$set(fig.width = 15, fig.height = 15, dpi = 300)"
+"0","# Visualizamos la información sumarizada"
+"0","kable(summary(coffee_ratings_or))"

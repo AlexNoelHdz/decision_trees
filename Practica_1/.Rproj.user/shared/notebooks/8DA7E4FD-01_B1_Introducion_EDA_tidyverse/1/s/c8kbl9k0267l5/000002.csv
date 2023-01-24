@@ -1,0 +1,5 @@
+"0","```r
+diamonds %>% ggplot() +
+  geom_histogram(mapping = aes(x = carat), binwidth = 0.5) +
+  ggtitle(\"Histogram of carats\")
+```"

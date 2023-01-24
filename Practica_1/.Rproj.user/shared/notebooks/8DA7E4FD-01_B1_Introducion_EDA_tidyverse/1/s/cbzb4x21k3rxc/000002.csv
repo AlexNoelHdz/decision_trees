@@ -1,0 +1,4 @@
+"0","```r
+# R base
+head(filter(data,housing == 'own'))
+```"

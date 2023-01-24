@@ -1,0 +1,10 @@
+"0","```r
+plot_bar(final_data)
+```"
+"1","5 columns ignored with more than 50 categories.
+dest: 105 categories
+tailnum: 4044 categories
+time_hour: 6936 categories
+model: 128 categories
+name: 102 categories
+"

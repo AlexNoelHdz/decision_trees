@@ -1,0 +1,2 @@
+"0","data %>% ggplot(aes(age,credit_amount, color = class)) +"
+"0","  geom_point() + geom_smooth(method=lm)"

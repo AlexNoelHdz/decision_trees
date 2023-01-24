@@ -1,0 +1,29 @@
+"0","```r
+library(gridExtra)
+```"
+"1","
+Attaching package: ‘gridExtra’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+"
+"0","```r
+library(grid)
+
+g <- ggplot(data = diamonds %>% filter(carat < 3), mapping = aes(x = carat))
+g0 <- g + geom_histogram(binwidth = 0.5) +
+  ggtitle(\"Binwidth = 0.5\")
+g1 <- g + geom_histogram(binwidth = 0.1) +
+  ggtitle(\"Binwidth = 0.1\")
+g2 <- g + geom_histogram(binwidth = 0.01) +
+  ggtitle(\"Binwidth = 0.01\")
+
+grid.arrange(g0,g1,g2, 
+             top = \"Histograms varying the binwidth\",
+             bottom = textGrob(
+             \"Different patterns can arise when selecting different binwidths\",
+             gp = gpar(fontface = 3, fontsize = 9),
+             hjust = 1,
+             x = 1))
+```"

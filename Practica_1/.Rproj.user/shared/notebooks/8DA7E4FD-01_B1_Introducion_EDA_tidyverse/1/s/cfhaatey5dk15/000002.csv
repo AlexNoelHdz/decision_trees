@@ -1,0 +1,5 @@
+"0","```r
+pca_df <- na.omit(final_data[, c(\"origin\", \"dep_delay\", \"arr_delay\", \"air_time\", \"year_planes\", \"seats\")])
+
+plot_prcomp(pca_df, variance_cap = 0.9, nrow = 2L, ncol = 2L)
+```"

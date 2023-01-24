@@ -1,0 +1,11 @@
+"0","```r
+library(nycflights13)
+library(DataExplorer)
+```"
+"1","Registered S3 method overwritten by 'data.table':
+  method           from
+  print.data.table     
+Registered S3 method overwritten by 'htmlwidgets':
+  method           from         
+  print.htmlwidget tools:rstudio
+"

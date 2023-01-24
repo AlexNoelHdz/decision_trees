@@ -1,0 +1,3 @@
+"0","# color de los puntitos pero solo una linea de tendencia relación entre edad y monto"
+"0","data %>% ggplot(aes(age,credit_amount)) +"
+"0","  geom_smooth(method=lm) + geom_point(aes( color = class))"

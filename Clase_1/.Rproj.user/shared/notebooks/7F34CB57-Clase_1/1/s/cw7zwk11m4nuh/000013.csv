@@ -1,0 +1,8 @@
+"0","# Crear conjunto de datos con merge o join para el left join usamos all.x"
+"0",""
+"0","final_data <- flights %>% merge(airlines, by = 'carrier', all.x = TRUE) %>%   "
+"0","  merge(planes, by = 'tailnum', all.x = TRUE, suffixes = c('_flights',""_planes"")) %>%   "
+"0","  merge(airports, by.x = ""origin"", by.y = ""faa"", all.x = TRUE, suffixes = c(""_carrier"",""_origin"")) %>%   "
+"0","  merge(airports, by.x = ""dest"", by.y = ""faa"", all.x = TRUE, suffixes = c('_origin','_dest'))"
+"0",""
+"0","head(final_data)"

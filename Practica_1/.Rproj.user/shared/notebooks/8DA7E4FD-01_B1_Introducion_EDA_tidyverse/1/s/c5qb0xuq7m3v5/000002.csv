@@ -1,0 +1,6 @@
+"0","```r
+# El color aplica a todo el gráfico porque está en la función principal ggplot()
+ggplot(mpg, aes(displ, hwy,color = class)) +
+  geom_point() +
+  geom_smooth()
+```"

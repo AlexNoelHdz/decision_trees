@@ -1,0 +1,41 @@
+---
+title: "coffe_ratings"
+author: "ANHG"
+date: "2023-01-23"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  github_document:
+    toc: yes
+    dev: jpeg
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    theme: cosmo
+    highlight: tango
+---
+# Exploración y limpieza de los datos
+
+# Obtener Datos
+```{r message=TRUE}
+# install.packages("tidytuesdayR") 
+tuesdata <- tidytuesdayR::tt_load(2020, week = 28)
+coffee_ratings_or <- tuesdata$coffee_ratings
+
+```
+
+
+# Analisis exploratorio de los datos.
+
+```{r}
+library(tidyverse)
+head(coffee_ratings_or)
+```
+```{r}
+library(knitr)
+knitr::opts_chunk$set(fig.width = 15, fig.height = 15, dpi = 300)
+# Visualizamos la información sumarizada
+kable(summary(coffee_ratings_or))
+```
+

@@ -1,0 +1,26 @@
+{
+    "id": "A01DB264",
+    "path": "~/R/arboles/01_B1_Introducion_EDA_tidyverse.Rmd",
+    "project_path": null,
+    "type": "r_markdown",
+    "hash": "3937053733",
+    "contents": "",
+    "dirty": false,
+    "created": 1674455901866.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "4,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1674455899,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1674455908998,
+    "read_only": false,
+    "read_only_alternatives": []
+}

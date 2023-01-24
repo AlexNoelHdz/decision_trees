@@ -1,0 +1,9 @@
+"0","```r
+output <- vector(\"double\", ncol(df))  # 1. output
+for (i in seq_along(df)) {            # 2. sequence
+  output[[i]] <- median(df[[i]])      # 3. body
+}
+output
+```"
+"1","[1] -0.80893474 -0.51625280 -0.02820393 -0.42178257
+"

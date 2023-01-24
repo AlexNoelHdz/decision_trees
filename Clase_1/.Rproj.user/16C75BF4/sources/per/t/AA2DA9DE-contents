@@ -1,0 +1,99 @@
+---
+title: "Clase_1"
+author: "ANHG"
+date: "2023-01-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Ejemplo de la [Clase 1](https://es.wikipedia.org/wiki/Clase_1). 
+```{r}
+#install.packages('tidyverse')
+library(tidyverse)
+data <- read.csv("https://datahub.io/machine-learning/credit-g/r/credit-g.csv")
+# Leer con punto quita espacios, guin bajo deja.
+head(data)
+
+
+```
+```{r}
+# shift ctrl m pa sacar el %>% 
+data %>% filter(age >= 29) %>% count(class)
+```
+```{r}
+# shift ctrl m pa sacar el %>% 
+data %>% filter(age >= 29)
+```
+```{r}
+# ctrl alt i -> chunk python
+# Agrupar por personal status y usar promedio de la edad groupby y summarize 
+
+data %>% group_by(personal_status, class) %>% 
+  summarise("Mean age" = mean(age))
+```
+```{r}
+data %>% ggplot(aes(age,credit_amount, color = class)) +
+  geom_point() + geom_smooth(method=lm)
+# Area gris es el intervalo de confianza de los datos
+# color de los puntitos 
+```
+```{r}
+# color de los puntitos pero solo una linea de tendencia relación entre edad y monto
+data %>% ggplot(aes(age,credit_amount)) +
+  geom_smooth(method=lm) + geom_point(aes( color = class))
+# Area gris es el intervalo de confianza de los datos
+
+```
+```{r}
+# Comportamiento de distribución
+
+data %>% ggplot() + 
+  geom_boxplot(mapping = aes(x=class,y=duration))
+
+```
+
+geom_col: se puede especificar x e y 
+geom_bar: cuenta los datos
+```{r}
+# install.packages("nycflights13")
+# install.packages("DataExplorer")
+library(nycflights13)
+library(DataExplorer)
+```
+```{r}
+data_f <- list(airlines, airports,flights, planes, weather)
+```
+```{r}
+plot_str(data_f)
+```
+
+```{r}
+# Crear conjunto de datos con merge o join para el left join usamos all.x
+
+final_data <- flights %>% merge(airlines, by = 'carrier', all.x = TRUE) %>%   
+  merge(planes, by = 'tailnum', all.x = TRUE, suffixes = c('_flights',"_planes")) %>%   
+  merge(airports, by.x = "origin", by.y = "faa", all.x = TRUE, suffixes = c("_carrier","_origin")) %>%   
+  merge(airports, by.x = "dest", by.y = "faa", all.x = TRUE, suffixes = c('_origin','_dest'))
+
+head(final_data)
+```
+
+## Análisis con DataExplorer
+```{r}
+introduce(final_data)
+```
+```{r}
+plot_intro(final_data)
+```
+
+```{r}
+plot_missing(final_data)
+```
+
+
+
