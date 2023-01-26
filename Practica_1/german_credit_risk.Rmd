@@ -1,0 +1,24 @@
+---
+title: "german_credit_risk"
+author: "ANHG"
+date: "2023-01-24"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+---
+```{r}
+# Instalar librería para visualización de tablas
+library(knitr)
+```
+
+## Import the data
+
+```{r}
+library(readr)
+german_credit_data <- read_csv("Inputs/german_credit_data.csv")
+View(german_credit_data)
+kable(head(german_credit_data))
+
+```
+

@@ -1,0 +1,117 @@
+---
+title: "coffe_ratings"
+author: "ANHG"
+date: "2023-01-23"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+---
+```{r}
+# Incluir knitr para visualización de tablas
+library(knitr)
+#Tidyverse analisis de datos
+library(tidyverse)
+# Incluir la librería dataexplorer para exploracion de datos
+library(DataExplorer)
+
+```
+
+# Exploración y limpieza de los datos
+
+# Obtener Datos
+```{r message=TRUE}
+# install.packages("tidytuesdayR") 
+tuesdata <- tidytuesdayR::tt_load(2020, week = 28)
+coffee_ratings_or <- tuesdata$coffee_ratings
+
+```
+
+
+# Analisis exploratorio de los datos.
+
+```{r}
+library(tidyverse)
+kable(head(coffee_ratings_or))
+```
+```{r}
+# Rapida visualización de las columnas de datos
+summary(coffee_ratings_or)
+```
+## Pregunta de investigación ¿Cuales son los mejores productores de café y en qué regiones se encuentran?
+
+Con el summary podemos ver cuáles son las variables continuas y categóricas rápidamente.
+
+
+```{r}
+# Visualización rápida de un summary de los datos
+plot_intro(coffee_ratings_or)
+```
+### ¿Qué notamos?
+Podemos ver qué el 6.9 porciento de nuestras observaciones tienen missing values
+Solamente el 9.9% de las columnas tienen datos completos
+
+## Ver valores faltantes
+```{r}
+plot_missing(coffee_ratings_or)
+```
+
+### Análisis de los valores faltantes
+
+En este primer esfuerzo podemos revisar que la variable lot_number tiene un procentaje alto de faltantes, revisando el objetivo del estudio se decide descartar esta variable ya que el número de lote no abona nada para descubrir cuales son los mejores productores de café y en qué regiones se encuentran/
+
+```{r}
+final_data <- drop_columns(coffee_ratings_or, "lot_number")
+# Revisando de nuevo los missing values, pero ahora en formato de tabla obtenemos:
+kable(profile_missing(final_data))
+```
+
+### Anotaciones: 
+Lo primero que observo es que hay 3 columnas con 230 datos perdidos (parece ser un patron), entonces voy a hacer 2 datasets
+temp_1: Data_set sin 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
