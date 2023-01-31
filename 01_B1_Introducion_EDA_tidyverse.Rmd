@@ -728,3 +728,4 @@ Antes de comenzar con el reporte hacerse una pregunta sobre los datos y responde
 
 NOTA: No se trata de hacer visualizaciones por hacerlas, cada una debe de ir acompañada de un análisis respecto a la variable respuesta para cada modelo.
 
+

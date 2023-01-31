@@ -1,5 +1,0 @@
-"0","# Comportamiento de distribución"
-"0",""
-"0","data %>% ggplot() + "
-"0","  geom_boxplot(mapping = aes(x=class,y=duration))"
-"0",""

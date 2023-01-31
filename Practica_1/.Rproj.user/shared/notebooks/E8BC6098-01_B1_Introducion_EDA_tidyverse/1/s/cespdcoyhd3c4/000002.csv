@@ -1,4 +1,0 @@
-"0","```r
-# Tidiverse con el pipe %>% 
-data %>% filter(housing == 'own') %>% head()
-```"

@@ -1,4 +1,0 @@
-"0","```r
-data <- read.csv(\"https://datahub.io/machine-learning/credit-g/r/credit-g.csv\")
-head(data)
-```"

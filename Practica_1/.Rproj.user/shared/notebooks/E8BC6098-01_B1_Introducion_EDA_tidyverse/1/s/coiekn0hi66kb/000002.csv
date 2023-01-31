@@ -1,5 +1,0 @@
-"0","```r
-diamonds %>%  ggplot() +
-  geom_bar(mapping = aes(x = cut)) +
-  ggtitle(\"Count of Diamonds by cut quality\")
-```"

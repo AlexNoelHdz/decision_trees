@@ -1,4 +1,0 @@
-"0","```r
-ggplot(data = diamonds %>% filter(carat < 3), mapping = aes(x = carat, colour = cut)) +
-  geom_freqpoly(binwidth = 0.1)
-```"

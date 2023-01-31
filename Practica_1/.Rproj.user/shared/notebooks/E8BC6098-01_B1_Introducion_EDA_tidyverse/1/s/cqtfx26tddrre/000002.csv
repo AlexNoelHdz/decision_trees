@@ -1,6 +1,0 @@
-"0","```r
-ggplot(data = diamonds %>% filter(carat < 3), mapping = aes(x = carat, fill = cut)) +
-  geom_histogram(binwidth = 0.1) +
-  facet_wrap(~ cut) +
-  theme(legend.position = \"none\")
-```"

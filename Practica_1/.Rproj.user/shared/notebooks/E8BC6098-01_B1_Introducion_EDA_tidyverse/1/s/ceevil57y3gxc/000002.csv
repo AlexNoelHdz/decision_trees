@@ -1,8 +1,0 @@
-"0","```r
-final_data[which(final_data$manufacturer == \"AIRBUS INDUSTRIE\"),]$manufacturer <- \"AIRBUS\"
-final_data[which(final_data$manufacturer == \"CANADAIR LTD\"),]$manufacturer <- \"CANADAIR\"
-final_data[which(final_data$manufacturer %in% c(\"MCDONNELL DOUGLAS AIRCRAFT CO\", \"MCDONNELL DOUGLAS CORPORATION\")),]$manufacturer <- \"MCDONNELL DOUGLAS\"
-
-plot_bar(final_data$manufacturer)
-
-```"

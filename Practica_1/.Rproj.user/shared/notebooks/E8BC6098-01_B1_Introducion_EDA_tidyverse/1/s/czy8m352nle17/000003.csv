@@ -1,7 +1,0 @@
-"0","```r
-
-# data frame transformado con pipe
-mpg %>%    filter(manufacturer == 'audi') %>% 
-  group_by(year) %>%  summarise(cty_mean = mean(cty),
-                                hwy_mean = mean(hwy)) 
-```"

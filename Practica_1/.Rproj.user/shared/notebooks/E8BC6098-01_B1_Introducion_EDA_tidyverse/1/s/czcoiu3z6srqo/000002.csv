@@ -1,5 +1,0 @@
-"0","```r
-arr_delay_df2 <- final_data[, c(\"arr_delay\", \"dep_time\", \"dep_delay\", \"arr_time\", \"air_time\", \"distance\", \"year_planes\", \"seats\")]
-
-plot_scatterplot(arr_delay_df2, by = \"arr_delay\", sampled_rows = 1000L)
-```"

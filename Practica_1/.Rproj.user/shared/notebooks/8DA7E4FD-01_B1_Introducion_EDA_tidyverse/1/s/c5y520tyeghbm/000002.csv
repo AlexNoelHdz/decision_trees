@@ -1,5 +1,0 @@
-"0","```r
-qq_data <- final_data[, c(\"arr_delay\", \"air_time\", \"distance\", \"seats\")]
-
-plot_qq(qq_data, sampled_rows = 1000L)
-```"

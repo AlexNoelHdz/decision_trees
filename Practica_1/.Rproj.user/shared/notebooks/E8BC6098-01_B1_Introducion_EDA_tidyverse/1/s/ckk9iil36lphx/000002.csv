@@ -1,5 +1,0 @@
-"0","```r
-log_qq_data <- update_columns(qq_data, 2:4, function(x) log(x + 1))
-
-plot_qq(log_qq_data[, 2:4], sampled_rows = 1000L)
-```"

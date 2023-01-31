@@ -1,6 +1,0 @@
-"0","# ctrl alt i -> chunk python"
-"0","# Agrupar por personal status y usar promedio de la edad groupby y summarize "
-"0",""
-"0","data %>% group_by(personal_status, class) %>% "
-"0","  summarise(""Mean age"" = mean(age))"
-"2","`summarise()` has grouped output by 'personal_status'. You can override using the `.groups` argument."

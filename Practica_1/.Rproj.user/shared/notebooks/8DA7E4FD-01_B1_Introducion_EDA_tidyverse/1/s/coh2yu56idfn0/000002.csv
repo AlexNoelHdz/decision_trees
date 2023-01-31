@@ -1,3 +1,0 @@
-"0","```r
-final_data <- drop_columns(final_data, c(\"dst_origin\", \"tzone_origin\", \"year_flights\", \"tz_origin\"))
-```"

@@ -1,0 +1,118 @@
+---
+title: "German credit risk"
+author: "ANHG"
+date: "2023-01-24"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+vignette: >
+  %\VignetteIndexEntry{German credit risk}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+```{r}
+# Incluir knitr para visualización de tablas
+library(knitr)
+# Incluir Tidyverse para analisis de datos
+library(tidyverse)
+# Incluir la librería dataexplorer para exploracion de datos
+library(DataExplorer)
+```
+
+# Obtención de datos
+
+```{r}
+library(readr)
+german_credit_data <- read_csv("Inputs/german_credit_data.csv")
+kable(head(german_credit_data))
+```
+
+# Exploración de los datos
+
+
+Comenzamos con al pregunta de investigación ¿El prestamo a un cliente prospecto tendrá riesgo bueno o malo?
+
+
+## Summary
+
+
+```{r}
+summary(german_credit_data)
+```
+
+Features categóricas:
+Sex
+Housing
+Saving accounts
+Checking account
+Purpose
+Risk
+
+Features Continuas:
+Index
+Age
+Job
+Credit amount
+Duration
+
+Vemos que
+- Hay 1000 Observaciones
+- El promedio de edad es de 35 años
+- En promedio se prestan 3271 dolares
+- La duración promedio es de 20 meses
+
+## Summary (Plot)
+
+```{r}
+plot_intro(german_credit_data)
+```
+- El 50% de las columnas tiene filas completas. Tenemos un 5.2% de obserbaciones sin datos.
+- Casi la mitad de las columnas son continuas. 
+
+## Datos faltantes
+
+### Gráfico
+```{r}
+plot_missing(german_credit_data)
+```
+- Checking account tiene un 39.4% de datos faltantes.
+
+## Mapa de calor
+
+```{r}
+plot_correlation(na.omit(german_credit_data), maxcat = 5L,  type = c("all", "discrete", "continuous"))
+```
+- En el mapa de correlación podemos observar que tienen mayor correlación con el riesgo
+ - Credit amount
+ - Duration
+ - Housing own
+ - Saving accounts rich
+ - Checking accounts rich
+
+
+# Limpieza de datos
+
+- Job está muy correlacionado con credit amount, pero poco con el riesgo por lo que creo que quitar esa variable no afectaría mucho. Sin embargo para análisis y segmentación abona de la misma manera que el sexo. 
+- No encuentro nada que sea estrictamente necesario cambiar. 
+
+## Revisemos la distribución de frecuencia
+
+```{r}
+plot_bar(german_credit_data)
+```
+
+## Un gráfico interesantes es el de la distribución de frecuencia por Sexo, Riesgo, Propósito
+```{r}
+plot_bar(german_credit_data, by = "Sex") 
+plot_bar(german_credit_data, by = "Risk")
+plot_bar(german_credit_data, by = "Purpose")
+```
+
+```{r}
+plot_boxplot(german_credit_data, by = "Sex") 
+plot_boxplot(german_credit_data, by = "Risk")
+plot_boxplot(german_credit_data, by = "Purpose")
+```
+
+

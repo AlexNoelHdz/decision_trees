@@ -1,7 +1,0 @@
-"0","```r
-data %>% group_by(class,personal_status) %>% 
-  summarise(n= n(), avg_existing_credits = mean(existing_credits)) %>% 
-  arrange(personal_status,-n)
-```"
-"1","`summarise()` has grouped output by 'class'. You can override using the `.groups` argument.
-"

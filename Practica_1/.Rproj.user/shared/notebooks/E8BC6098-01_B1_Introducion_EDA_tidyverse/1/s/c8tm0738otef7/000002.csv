@@ -1,6 +1,0 @@
-"0","```r
-final_data <- flights %>% merge(airlines, by= \"carrier\", all.x = TRUE) %>% 
-  merge(planes, by = \"tailnum\", all.x = TRUE, suffixes = c(\"_flights\", \"_planes\")) %>% 
-  merge(airports, by.x = \"origin\", by.y = \"faa\", all.x = TRUE, suffixes = c(\"_carrier\", \"_origin\")) %>% 
-  merge(airports, by.x = \"dest\", by.y = \"faa\", all.x = TRUE, suffixes = c(\"_origin\", \"_dest\"))
-```"

@@ -1,5 +1,0 @@
-"0","```r
-ggplot(mpg, aes(displ, hwy, colour = class)) +
-  geom_point() +
-  facet_wrap(~manufacturer)
-```"

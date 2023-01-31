@@ -1,4 +1,0 @@
-"0","```r
-mpg  %>% ggplot() +
-  geom_boxplot(mapping = aes(x = reorder(class, hwy, FUN = median), y = hwy))+ labs(x = \"class\", y = \"hwy mpg\")
-```"

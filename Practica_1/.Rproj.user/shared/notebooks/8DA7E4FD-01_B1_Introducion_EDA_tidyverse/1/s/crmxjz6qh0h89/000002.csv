@@ -1,4 +1,0 @@
-"0","```r
-data <- list(airlines, airports, flights, planes, weather)
-plot_str(data)
-```"

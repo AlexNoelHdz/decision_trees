@@ -1,5 +1,0 @@
-"0","```r
-final_data <- drop_columns(final_data, c(\"year_flights\", \"tz_origin\"))
-```"
-"1","Warning: Column 'year_flights' does not exist to removeWarning: Column 'tz_origin' does not exist to remove
-"

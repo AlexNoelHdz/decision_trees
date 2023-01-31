@@ -1,7 +1,0 @@
-"0","```r
-## Reduce data size for demo purpose
-arr_delay_df <- final_data[, c(\"arr_delay\", \"month\", \"day\", \"hour\", \"minute\", \"dep_delay\", \"distance\", \"year_planes\", \"seats\")]
-
-## Call boxplot function
-plot_boxplot(arr_delay_df, by = \"arr_delay\")
-```"

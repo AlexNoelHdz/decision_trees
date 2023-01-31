@@ -1,5 +1,0 @@
-"0","#install.packages('tidyverse')"
-"0","library(tidyverse)"
-"0","data <- read.csv(""https://datahub.io/machine-learning/credit-g/r/credit-g.csv"")"
-"0","# Leer con punto quita espacios, guin bajo deja."
-"0","head(data)"

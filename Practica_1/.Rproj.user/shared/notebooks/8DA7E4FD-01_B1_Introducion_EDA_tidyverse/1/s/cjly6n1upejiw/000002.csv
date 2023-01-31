@@ -1,3 +1,0 @@
-"0","```r
-final_data <- update_columns(final_data, \"flight\", as.factor)
-```"

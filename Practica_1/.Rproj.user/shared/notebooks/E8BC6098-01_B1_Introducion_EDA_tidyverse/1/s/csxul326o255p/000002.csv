@@ -1,3 +1,0 @@
-"0","```r
-final_data <- drop_columns(final_data, \"speed\")
-```"
