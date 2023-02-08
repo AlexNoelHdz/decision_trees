@@ -44,6 +44,35 @@ custom_dt <- function(data, indice, nombre) {
 
 ```
 
+```{r}
+# Tablas sencillas
+library(tidyverse)
+library(kableExtra)
+# Tablas páginadas customizadas
+library(DT)
+# Funcion para obtener datatable (datos, indice tabla, nombre)
+custom_dt <- function(data, indice, nombre) {
+  table_n <- paste("Table ", indice) 
+  dt <- datatable(data,
+                  caption = htmltools::tags$caption(
+                  style = 'caption-side: bottom; text-align: center;',
+                  table_n, htmltools::em(nombre)),
+                  extensions = 'FixedColumns',
+                  rownames= FALSE,
+                  filter = 'top',
+                  options = list(
+                  pageLength = 5,
+                  autoWidth = TRUE,
+                  columnDefs = 
+                  list(list(width = '300px', targets = c(0,7))),
+                  scrollX = TRUE,
+                  escape = T)
+                  )
+  return(dt)
+}
+
+```
+
 # Obtención y exploración de datos.
 
 ```{r}
@@ -53,5 +82,6 @@ data <- ames
 custom_dt(data, 1, "Ames dataset.")
 ```
 
-```{}
+```{r}
+summarise(data)
 ```

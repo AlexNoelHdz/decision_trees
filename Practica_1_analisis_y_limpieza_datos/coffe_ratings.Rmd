@@ -7,20 +7,42 @@ output:
     theme: architect
     highlight: github
 ---
-```{r}
+
+```{r message=FALSE, results='hide'}
 # Incluir knitr para visualización de tablas
 library(knitr)
-#Tidyverse analisis de datos
-library(tidyverse)
 # Incluir la librería dataexplorer para exploracion de datos
 library(DataExplorer)
-
+# Tablas, librería adicional
+library(kableExtra)
+# Tablas páginadas customizadas
+library(DT)
+# Funcion para obtener datatable (datos, indice tabla, nombre)
+custom_dt <- function(data, indice, nombre) {
+  table_n <- paste("Table ", indice) 
+  dt <- datatable(data,
+                  caption = htmltools::tags$caption(
+                  style = 'caption-side: bottom; text-align: center;',
+                  table_n, htmltools::em(nombre)),
+                  extensions = 'FixedColumns',
+                  rownames= FALSE,
+                  filter = 'top',
+                  options = list(
+                  pageLength = 5,
+                  autoWidth = TRUE,
+                  columnDefs = 
+                  list(list(width = '300px', targets = c(0,7))),
+                  scrollX = TRUE,
+                  escape = T)
+                  )
+  return(dt)
+}
 ```
 
 # Exploración y limpieza de los datos
 
 ## Obtener Datos
-```{r message=TRUE}
+```{r message=FALSE, results='hide'}
 # install.packages("tidytuesdayR") 
 tuesdata <- tidytuesdayR::tt_load(2020, week = 28)
 coffee_ratings_or <- tuesdata$coffee_ratings
@@ -29,15 +51,37 @@ coffee_ratings_or <- tuesdata$coffee_ratings
 
 
 ## Analisis exploratorio de los datos.
+```{r message=FALSE, results='hide'}
+# Librería de exploración de datos
+library(tidyverse)
+```
+
 
 ```{r}
-library(tidyverse)
-kable(head(coffee_ratings_or))
+custom_dt(head(coffee_ratings_or), 1, "Coffe_ratings")
 ```
 ```{r}
 # Rapida visualización de las columnas de datos
 summary(coffee_ratings_or)
 ```
+```{r}
+# Encontrar la correlación de las variables con total_cup_points. 
+
+coffee_ratings_or$tcp_cat <- cut(coffee_ratings_or$total_cup_points,
+                                                  breaks=c(0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 80, 85, 90, 95),
+                                                  labels=c(10, 20, 30, 40, 45, 50, 55, 60, 65, 80, 85, 90, 95))
+from dataprep.eda import plot_correlation
+plot_correlation(df)
+
+plot_correlation(coffee_ratings_or, type = c("all", "discrete", "continuous"), "tcp_cat")
+```
+
+```{r}
+help(plot_correlation)
+```
+
+
+
 ## Pregunta de investigación ¿Cuales son los mejores productores de café y en qué regiones se encuentran?
 
 Con el summary podemos ver cuáles son las variables continuas y categóricas rápidamente.
@@ -66,14 +110,14 @@ En este primer esfuerzo podemos revisar que la variable lot_number tiene un proc
 ```{r}
 final_data <- drop_columns(coffee_ratings_or, "lot_number")
 # Revisando de nuevo los missing values, pero ahora en formato de tabla obtenemos:
-kable(profile_missing(final_data))
+profile_missing(final_data)
 ```
 
 ### Anotaciones: 
 Otra cosa que observo es que hay 3 columnas con 230 datos perdidos (parece ser un patrón) por lo que filtro y me doy cuenta que casi todos los ranchos que no reportan altitud tampoco reportan estas 3.
 ```{r}
 no_altitude <- final_data %>% filter(is.na(altitude_high_meters) & is.na(altitude))
-kable(head(no_altitude))
+custom_dt(head(no_altitude),2,"Coffy ratings excluding altitude columns")
 ```
 Siguiendo el hilo de la exploración de datos, me gustaría ver como se comporta el puntaje obtenido de una taza de café con su altura. 
 
@@ -81,7 +125,7 @@ Siguiendo el hilo de la exploración de datos, me gustaría ver como se comporta
 # Para ello me concentro en los datos que si tienen la altitude rellenada 
 final_data_con_altitude <- final_data %>% filter(!is.na(altitude_high_meters) & !is.na(altitude))
 
-final_data_con_altitude
+custom_dt(final_data_con_altitude, 3, "Observaciones que contienen altitud")
 ```
 
 Al revisar un poco los datos, veo que no todas las observaciones de altitude son numericas, por lo que decido usar altitude_mean_meters.
@@ -101,9 +145,6 @@ final_data_con_altitude %>% ggplot(aes(x=altitude_mean_meters, y=total_cup_point
 ```{r}
 final_data_con_altitude %>% filter(total_cup_points>85) %>% ggplot(aes(x=altitude_mean_meters, y=total_cup_points, fill=region)) + geom_area() + ggtitle("Relacion entre la calificación del café y la altura y región de siembra")
 ```
-```{r}
-plot_bar(final_data_con_altitude)
-```
 
 
 
@@ -113,24 +154,6 @@ Surge la pregunta si estos datos abonan a la pregunta de investigación (certifi
 ```{r}
 plot_histogram(final_data_con_altitude)
 ```
-
-
-Con el objetivo entonces de ver qué variables son relevantes, hacemos un mapa de correlación 
-```{r}
-plot_correlation(na.omit(final_data_con_altitude), maxcat = 5L)
-```
-
-### Resultados mapa de calor
-Vemos que el mapa de calor ignora las features con más de 5 categorías y en el caso de (certification_address, certification_contact) tienen más de 25. No estoy muy seguro si esto quiere decir que es posible eliminar esas columnas, solo estoy describiendo mi observación.
-
-Lo que sí vi es que hay varias variables con bajísima correlación con total_cup_points como
-- Las relacionadas con la altitud, el método de procesamiento, el color verde y las unidades de medida.
-
-
-
-
-
-
 
 
 
