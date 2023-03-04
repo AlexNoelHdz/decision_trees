@@ -1,0 +1,78 @@
+---
+title: "Your Document Title"
+author: "Document Author"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+---
+
+```{r}
+library(tidyverse)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(tictoc)
+library(beepr)
+```
+
+```{r}
+data_class <- read.csv("data/Movie_classification.csv")
+summary(data_class)
+```
+
+```{r}
+data_class <- data_class %>%  mutate(Start_Tech_Oscar = as.factor(Start_Tech_Oscar))
+summary(data_class)
+# XGBoost o random forest 
+```
+
+```{r}
+set.seed(123)
+split = sample.split(data_class, SplitRatio = 0.8)
+data_train = subset(data_class, split == TRUE)
+data_test = subset(data_class, split == FALSE)
+```
+
+```{r}
+model_class <- rpart(formula = Start_Tech_Oscar~.,
+                   data = data_train,
+                   method = "class",
+                   control = rpart.control(maxdepth = 3))
+model_class
+```
+
+```{r}
+rpart.plot(model_class, box.palette = 'RdBu', digits = -3)
+```
+
+```{r}
+test <- data_test %>% mutate(
+  pred_mp3 = predict(model_class, data_test, type = 'class'))
+test
+```
+
+# Matriz de confusión
+
+```{r}
+table(test$Start_Tech_Oscar, test$pred_mp3)
+```
+
+```{r}
+acc <- (40+19)/sum(table(test$Start_Tech_Oscar, test$pred_mp3)) 
+acc
+```
+
+```{r}
+full_tree <- rpart(formula = Start_Tech_Oscar~.,
+                   data = data_train,
+                   method = "class",
+                   control = rpart.control(cp = 0))
+plotcp(full_tree)
+```
+
+```{r}
+mincp <- full_tree$cptable[which.min(full_tree$cptable[,"xerror"]),"CP"] 
+mincp
+```

@@ -1,0 +1,297 @@
+---
+title: "Práctica No 3 h2o"
+author: "Thaitiel"
+date: "`r Sys.Date()`"
+output:
+prettydoc::html_pretty:
+theme: architect
+highlight: GitHub
+---
+
+```{r setup, include=FALSE, results='hide', message=FALSE}
+library(tidyverse)
+library(modeldata)
+library(h2o)
+library(tidymodels)
+library(tictoc)
+library(beepr)
+library(doParallel)
+library(ggpubr)
+data(ames, package = "modeldata")
+dim(ames)
+
+```
+
+```{r results='hide', message=FALSE}
+library(tidyverse)
+library(kableExtra)
+# Tablas páginadas customizadas
+library(DT)
+# Funcion para obtener datatable (datos, indice tabla, nombre)
+custom_dt <- function(data, indice = "n", nombre = "Tabla") {
+  table_n <- paste("Table ", indice)
+  dt <- datatable(data,
+                  caption = htmltools::tags$caption(
+                    style = 'caption-side: bottom; text-align: center;',
+                    table_n, htmltools::em(nombre)),
+                  extensions = 'FixedColumns',
+                  rownames= FALSE,
+                  filter = 'top',
+                  options = list(
+                    pageLength = 5,
+                    autoWidth = TRUE,
+                    columnDefs =
+                      list(list(width = '300px', targets = c(0,7))),
+                    scrollX = TRUE,
+                    escape = T)
+  )
+  return(dt)
+}
+```
+
+## Tidymodels Split
+
+```{r}
+
+set.seed(123)
+split_inicial <- initial_split(data = ames, # Datos
+                               prop = 0.8, # Poporción del entrenamiento
+                               strata =  Sale_Price # variable de salida / busca que entre test y train tengan distribución similar de price 
+                               )
+split_inicial
+
+
+data_train <- training(split_inicial)
+data_test <- testing(split_inicial)
+
+head(data_train)
+data_train[1]
+```
+
+```{r}
+data_train$Sale_Price %>% summary()
+data_test$Sale_Price %>% summary()
+```
+
+## Tidy Models
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+#Install Ranger
+# install.packages('ranger')
+# Definición del modelo y los hiperparámetros a optimizar
+modelo_rf <- rand_forest(
+                 mode  = "regression",
+                 mtry  = tune(),
+                 trees = tune(),
+                 min_n = tune()
+              ) %>%
+              set_engine(engine = "ranger")
+
+# Procesado
+transformer <- recipe(
+                  formula = Sale_Price ~ .,
+                  data =  data_train
+               ) %>%
+  step_naomit(all_predictors()) %>%
+  step_nzv(all_date_predictors()) %>% # paso varianza 0
+  step_center(all_numeric(), -all_outcomes()) %>%  # centralizar los datos (desviación estandar)
+  # all_outcomes toma todos menos flag
+  step_scale(all_numeric(), -all_outcomes()) %>% # escalamiento es con variables numéricas
+  step_dummy(all_nominal(), -all_outcomes()) # Quita multicolinealidad en R. Las nominales son las categóricas.
+
+# Estrategia de validación y creación de particiones
+set.seed(1234)
+cv_folds <- vfold_cv(
+              data    = data_train,
+              v       = 5,
+              strata  = Sale_Price
+             )
+
+# Workflow
+workflow_modelado <- workflow() %>%
+                     add_recipe(transformer) %>%
+                     add_model(modelo_rf)
+
+# Grid de hiperparámetros
+hiperpar_grid <- grid_max_entropy(
+                  # Rango de búsqueda para cada hiperparámetro
+                  mtry(range = c(1L, 10L), trans = NULL),
+                  trees(range = c(500L, 3000L), trans = NULL),
+                  min_n(range = c(2L, 100L), trans = NULL),
+                  # Número de combinaciones totales
+                  size = 100
+                )
+
+# Optimización de hiperparámetros
+registerDoParallel(cores = parallel::detectCores() - 1)
+tic()
+grid_fit <- tune_grid(
+              object    = workflow_modelado,
+              resamples = cv_folds,
+              metrics   = metric_set(rmse),
+              control   = control_resamples(save_pred = TRUE),
+              # Hiperparámetros
+              grid      = hiperpar_grid
+            )
+toc()
+beep(sound = 3)
+stopImplicitCluster()
+```
+
+```{r}
+show_best(grid_fit, metric = "rmse")
+```
+
+```{r}
+
+```
+
+## H2O
+
+```{r}
+# inicialización de h2o
+h2o.init(
+  ip = "localhost",
+  # -1 indica que se empleen todos los cores disponibles.
+  nthreads = -1,
+  # Máxima memoria disponible para el cluster.
+  max_mem_size = "6g"
+)
+```
+
+```{r}
+h2o.removeAll()
+h2o.no_progress()   # Para que no se muestre la barra de progreso.
+```
+
+```{r}
+# Cargar datos
+datos_h2o <- as.h2o(ames, destination_frame = 'datos_h2o')
+indices <- h2o.columns_by_type(object = datos_h2o, coltype = "numeric")
+h2o.cor(x = datos_h2o[, indices], y = NULL, method = "Pearson", na.rm = TRUE)
+
+h2o.names(datos_h2o)
+```
+
+```{r}
+particiones     <- h2o.splitFrame(data = datos_h2o, ratios = c(0.6,0.2), seed = 1234)
+datos_train_h2o <- h2o.assign(data = particiones[[1]], key = "datos_train_H2O")
+datos_valid_h2o <- h2o.assign(data = particiones[[2]], key = "datos_valid_H2O")
+datos_test_h2o  <- h2o.assign(data = particiones[[3]], key = "datos_test_H2O")
+```
+
+```{r}
+summary(datos_train_h2o$Sale_Price)
+```
+
+```{r}
+summary(datos_valid_h2o$Sale_Price)
+```
+
+```{r}
+summary(datos_test_h2o$Sale_Price)
+```
+
+### H2O Random Forest
+
+```{r}
+c(1:71,73:74)
+```
+
+```{r}
+random_forest_model <- h2o.randomForest(
+  training_frame = datos_train_h2o, # datos de h2o para training
+  validation_frame = datos_valid_h2o, # datos de h2o para validación (no es requerido)
+  x = c(1:71,73:74), # Las columnas predictoras, por índice
+  y = 72,    # La columna que queremos predecir, variable objetivo
+  model_id = "rf_covType_v1",  # nombre del modelo en h2o
+  ntrees = 200, # número de árboles
+  stopping_rounds = 2, # PAra cuando el promedio de dos árboles está dentro de 0.001 (predeterminado)
+  score_each_iteration = T, # Predecir contra training y validación para cada árbol
+  seed = 1000000  # Establecer una semilla aleatoria para que se pueda reproducir
+)
+
+```
+
+```{r}
+summary(random_forest_model)
+```
+
+```{r}
+registerDoParallel(cores = parallel::detectCores() - 1)
+tic()
+g <- h2o.grid("randomForest",
+  hyper_params = list(
+    ntrees = c(50, 100, 120),
+    max_depth = c(40, 60),
+    min_rows = c(1, 2)
+    ),
+  x = c(1:71,73:74), y = 72, training_frame = datos_train_h2o, nfolds = 10
+  )
+toc()
+beep(sound = 3)
+stopImplicitCluster()
+```
+
+```{r}
+g_r2 <- h2o.getGrid(g@grid_id, sort_by = "r2", decreasing = TRUE)
+g_r2
+```
+
+### GLM
+
+```{r}
+lassoregh2o <- h2o.glm(
+  training_frame = datos_train_h2o,
+  validation_frame = datos_valid_h2o,
+  y = "Sale_Price",
+  model_id = "lassoreg",
+  alpha = 1,
+  lambda = 0.01
+)
+```
+
+```{r}
+lassoregh2o
+```
+
+```{r}
+y <- "Sale_Price"
+x <- setdiff(names(datos_train_h2o
+                   ), y)
+```
+
+```{r}
+hyper_grid_lasso_h2o <- list(lambda = c(1e-1,1e-3,1e-5,1e-7,1e-9))
+
+search_criteria_3 <- list(strategy = "RandomDiscrete",
+                          stopping_metric = "RMSE",
+                          stopping_tolerance = 0.005,
+                          stopping_rounds = 10,
+                          max_runtime_secs = 600)
+
+system.time(random_grid <- h2o.grid(algorithm = "glm",
+                                    grid_id = "rf_grid3",
+                                    y = 72,
+                                    training_frame = datos_train_h2o,
+                                    validation_frame = datos_valid_h2o,
+                                    seed = 29,
+                                    nfolds = 5,
+                                    alpha = c(0.01,0.1,0.3,0.5,0.7,0.9),
+                                    hyper_params = hyper_grid_lasso_h2o,
+                                    search_criteria = search_criteria_3))
+```
+
+```{r}
+g_r2 <- h2o.getGrid(random_grid@grid_id, sort_by = "r2", decreasing = TRUE)
+random_grid
+```
+
+### Comparación de modelos
+
+```{r}
+
+```
