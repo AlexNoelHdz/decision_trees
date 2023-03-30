@@ -1,0 +1,31 @@
+---
+title: "Vignette Title"
+author: "Vignette Author"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+
+```
+
+El día de hoy vamos a hacer una clasificación multiclase con dos tipos de volcanes diferentes. Los volcanes tienen cierto tipo de caracteristicas, unas interesantes son la latitude y la lingitud.
+
+```{r}
+volcano <- read.csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-12/volcano.csv')
+volcano
+```
+
+```{r}
+volcano_data %>% head()
+```
+
+```{r}
+
+```
