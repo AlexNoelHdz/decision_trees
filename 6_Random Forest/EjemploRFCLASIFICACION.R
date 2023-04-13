@@ -113,17 +113,17 @@ grid_hiper <- expand_grid('trees' = c(50, 100, 500,1000), # número de árboles
 cl <- makePSOCKcluster(parallel::detectCores() -1 )
 registerDoParallel(cl)  
 
-tic() 
+
 grid_fit <- tune_grid(
   object = def_workflow,
   resamples = cv_folds, # validación cruzada
   metrics = metric_set(roc_auc,accuracy), 
   grid = grid_hiper
 )  
-toc()
+
 stopCluster(cl)  
   
-beep(1)
+
   
 # Mejores hiper
 # metricas más importantes para clasificación roc, precision y record. 

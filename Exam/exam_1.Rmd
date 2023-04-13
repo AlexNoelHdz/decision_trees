@@ -38,7 +38,11 @@ library(DataExplorer)
 library(caret)
 library(rpart)
 library(tidymodels)
+library(caTools)
+library(rpart)
 library(rpart.plot)
+library(tictoc)
+library(beepr)
 ```
 
 Carga de los datos
@@ -325,6 +329,8 @@ data.frame(RMSE=RMSE(predicciones, datos_prueba_lm$def_pay),R2=R2(predicciones,d
 
 Hay mucha bibliografía sobre el tema, sin embargo uno de los Paper más recientes "Johnston R, Jones K, Manley D. Confounding and collinearity in regression analysis: a cautionary tale and an alternative procedure, illustrated by studies of British voting behaviour." indica que un VIF mayor o igual que 2.5 indica colinealidad considerable, por lo que se decide probar el modelo nuevamente sin las variables que tengan arriba de 3.
 
+Tiene mucho sentido que no evaluemos el mes inmediato anterior para saber si sera def pay o no, porque practicamente nos estaría dando el resultado.
+
 ```{r}
 kable(car::vif(modelo_lm))
 ```
@@ -365,8 +371,10 @@ Pues bien, en conclusión esto nos sirve para eliminar las columnas que generan 
 
 ## Drop columnas con multicolinealidad del DF clean
 
+Podría parecer que lo importante es eliminar todas las de pago menos septiembre, pero este es un error común, PAY_SEP está correlacionada arriba del 90%, por lo que casi representa la variable de salida, es mejor eliminarla.
+
 ```{r}
-data_clean_trees <- select(data_clean_f, -BILL_AMT_SEP, -BILL_AMT_AGO, -BILL_AMT_JUL, -BILL_AMT_JUN, -BILL_AMT_MAY, -BILL_AMT_ABR, -PAY_AGO, -PAY_JUL, -PAY_JUN, -PAY_MAY, -PAY_ABR)
+data_clean_trees <- select(data_clean_f, -BILL_AMT_SEP, -BILL_AMT_AGO, -BILL_AMT_JUL, -BILL_AMT_JUN, -BILL_AMT_MAY, -BILL_AMT_ABR, -PAY_SEP )
 kable(colnames(data_clean_trees))
 ```
 
@@ -374,7 +382,7 @@ kable(colnames(data_clean_trees))
 
 ```{r}
 entrenamiento_porcentaje <- 0.7 # Proporción de los datos que se utilizarán para entrenamiento
-datos_entrenamiento <- data_clean %>% 
+datos_entrenamiento <- data_clean_trees %>% 
   group_by(def_pay) %>% # Agrupar por variable flag
   sample_frac(entrenamiento_porcentaje) # Muestra aleatoria una vez agrupado
 
@@ -430,58 +438,73 @@ train_control <- trainControl(
 ## Modelo con train, paquetería CARET
 
 ```{r}
-model_caret <- caret::train(
-  def_pay ~ .,
-  data = datos_train_caret, 
-  method = 'rpart',
-  trControl = train_control, 
-  tuneGrid = grid_caret)
+model_caret <- caret:: train(def_pay ~ .,
+                                 data = datos_train_caret,
+                                 method = "rpart",
+                                  tuneGrid = grid_caret,
+                                  trControl = trainControl(method="cv", number=10))
 ```
 
 ## Predicciones y matriz de confusión
 
 ```{r}
+# https://rpubs.com/maulikpatel/229337
 predicciones_caret <- predict(model_caret, newdata = datos_prueba_caret)
-confusionMatrix(predicciones_caret, datos_prueba_caret$def_pay)
+model_caret
 ```
 
-# Árbol de decisión Rpart con poda del árbol
+```{r}
+suppressMessages(library(rattle))
+
+fancyRpartPlot(model_caret$finalModel)
+```
+
+# Árbol de decisión Rpart
 
 Para este ejemplo se utiliza el conjunto de datos completo (dividido en datos_entrenamiento y datos_prueba, para después aplicar poda)
 
 ```{r}
-model_tree_rpart <- rpart(
-  formula = def_pay~.,
-  data = datos_entrenamiento,
-  control = rpart.control(minsplit = 20, maxdepth = 28))
-model_tree_rpart
+set.seed(123)
+split = sample.split(data_clean_trees, SplitRatio = 0.8)
+data_train_rpart = subset(data_clean_trees, split == TRUE)
+data_test_rpart = subset(data_clean_trees, split == FALSE)
 ```
 
 ```{r}
-library(rpart.plot)
-rpart.plot(model_tree_rpart)
+model_class <- rpart(formula = def_pay~.,
+                   data = data_train_rpart,
+                   method = "class",
+                   control = rpart.control(maxdepth = 3))
+model_class
+```
+
+```{r}
+rpart.plot(model_class, box.palette = 'RdBu', digits = -3)
+```
+
+```{r}
+test <- data_test_rpart %>% mutate(
+  pred_mp3 = predict(model_class, data_test_rpart, type = 'class'))
+head(test)
+```
+
+```{r}
+table(test$def_pay, test$pred_mp3)
+```
+
+```{r}
+acc <- (432+4503)/sum(table(test$def_pay, test$pred_mp3)) 
+acc
 ```
 
 ## Poda por medio de cost complexity y validación cruzada
 
-No es necesaria.
-
-```{r}
-model_tree_regression <- tree::tree(
-  formula = def_pay~.,
-  data = datos_entrenamiento,
-  split = "deviance", # Método 
-  )
-```
-
-```{r}
-predicciones_rpart  <- predict(model_tree_regression, newdata = datos_entrenamiento)
-```
+No es necesaria dada la complejidad.
 
 # Árbol de decisión Tidymodels
 
 ```{r}
-tidy_split <- initial_split(data_clean_f, prop = 0.7, strata = "def_pay")
+tidy_split <- initial_split(data_clean_trees, prop = 0.7, strata = "def_pay")
 
 tidy_train <- training(tidy_split)
 tidy_test <- testing(tidy_split)
@@ -521,11 +544,6 @@ grid_hiper <- expand_grid(
 ```
 
 ```{r}
-  # Optimización de hiperparámetros en el fit
-# Número de clusters
-cl <- makePSOCKcluster(parallel::detectCores() -1 )
-registerDoParallel(cl)  
-
 
 grid_fit <- tune_grid(
   object = def_workflow,
@@ -534,7 +552,7 @@ grid_fit <- tune_grid(
   grid = grid_hiper
 )  
 
-stopCluster(cl) 
+
 ```
 
 ```{r}
@@ -592,7 +610,7 @@ h2o.removeAll()
 ```
 
 ```{r}
-data_h2o <- as.h2o(x = data_clean_f,destination_frame = "data_h2o")
+data_h2o <- as.h2o(x = data_clean_trees,destination_frame = "data_h2o")
 ```
 
 ```{r}
@@ -660,12 +678,12 @@ confusionMatrix(as.factor(prediction_h2o$predict),as.factor( prediction_h2o$def_
 
 Todos los árboles tienen accuracy similar después de una buena exploración y limpieza de datos
 
-Caret Accuracy : 0.8159
+Caret Accuracy : 0.7563436
 
-Rpart Accuracy: 0.8203
+Rpart Accuracy: 0.8225
 
-Tidymodels Accuracy: 0.8193534
+Tidymodels Accuracy: 0.8064659
 
-H20 Accuracy: 0.8031
+H20 Accuracy: 0.7149
 
 # 
