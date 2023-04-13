@@ -1,0 +1,183 @@
+---
+title: "Vignette Title"
+author: "Vignette Author"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+El decisión tree no soporta importancia de los predictores. Vamos a ver cómo calcular esta importancia en rpart.
+
+El ejemplo que se trabajará aqui será el de los datos de msss.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(tree)
+library(MASS)
+library(skimr) # alternativa summary
+```
+
+```{r}
+data('Boston')
+data1 <- Boston 
+```
+
+```{r}
+data2 <- data1 %>% dplyr::select(-black) # Eliminar black si existiera
+```
+
+```{r}
+summary(data1)
+```
+
+```{r}
+skim(data1)
+```
+
+# Modelado
+
+## Split de los datos
+
+```{r}
+set.seed(123)
+sample_data <- sample(1:nrow(data), size = nrow(data)/2)
+sample_data
+```
+
+Extraer el train y test con los indices de sample_data
+
+```{r}
+train <- data1[sample_data,]
+test <- data1[-sample_data,]
+```
+
+Podemos ir directo al modelo porque se van a usar árboles.
+
+Si fuera otro método hay que hacer la receta.
+
+## Creación del modelo con paquetería TREE
+
+```{r}
+set.seed(123)
+# formula = variable objetivo | todo lo demás se entrena ~.
+
+# mincut: hasta dónde se corta y meansize: tamaño
+# regressión, este no es el de clasificación
+model_tree_tree <- tree::tree(
+  formula = medv~.,
+  data = train,
+  split = "deviance", # Método 
+  mincut = 20, # este tiene que ser menor 
+  minsize = 50
+  )
+model_tree_tree
+# asterisco es la hoja, ahi termina la bifurcación
+```
+
+## Plot tree
+
+```{r}
+par(mar = c(1,1,1,1)) 
+plot(x = model_tree_tree, type = 'proportional')
+text(x = model_tree_tree, splits = TRUE, pretty = 0, cex = 0.8,
+     col = "blue")
+```
+
+## Modelo con rpart
+
+```{r}
+model_tree_rpart <- rpart(
+  formula = medv~.,
+  data = train,
+  control = rpart.control(minsplit = 20, maxdepth = 30))
+model_tree_rpart
+```
+
+```{r}
+rpart.plot(model_tree_rpart)
+```
+
+# Prunning (Poda) por medio de cost complexity y validación cruzada.
+
+```{r}
+model_tree_regression <- tree::tree(
+  formula = medv~.,
+  data = train,
+  split = "deviance", # Método 
+  mincut = 1, # este tiene que ser menor 
+  minsize = 2,
+  mindev = 0 
+  )
+```
+
+## Validación cruzada
+
+```{r}
+library(tictoc)
+library(beepr)
+tic()
+set.seed(123)
+cv_tree <- cv.tree(model_tree_regression, K = 3)
+toc()
+beep(2)
+# información de vueltas
+# dev: estimación de la validación cruzada (maxdev en tidymodels)
+# size: tamaño de nodos o terminales del árbol
+# nodo terminal: hojas
+# dev: error validación cruzada (residual)
+# k: Penalización de un alpha
+# method: Criterio seleccionado para formar el arbol
+# buscar mejor dev, tamaño con minimo error
+cv_tree
+```
+
+## Tamaño óptimo con minimización del error (dev)
+
+```{r}
+# rev invierte el vector 
+size_opt <- rev(cv_tree$size)[which.min(rev(cv_tree$dev))]
+size_opt
+```
+
+## Poda del árbol
+
+```{r}
+tree_prun <- prune.tree(tree = model_tree_regression,
+                        best = size_opt)
+tree_prun
+```
+
+```{r}
+par(mar = c(1,1,1,1)) 
+plot(x = tree_prun, type = 'proportional')
+text(x = tree_prun, splits = TRUE, pretty = 0, cex = 0.8,
+     col = "blue")
+```
+
+# Predicción en test poda
+
+```{r}
+pred <- predict(tree_prun, newdata = test)
+pred
+```
+
+```{r}
+```
+
+```{r}
+summary(data1$medv)
+```
+
+## Predicción arbol completo
+
+```{r}
+pred_big <- predict(model_tree_regression, newdata = test)
+rmse_test_big <- sqrt(mean((pred_big -test$medv)^2))
+rmse_test_big
+```

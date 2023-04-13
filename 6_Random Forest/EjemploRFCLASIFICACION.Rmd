@@ -1,0 +1,371 @@
+---
+title: "Random Forest Clasificación"
+author: "Alejandro Noel Hérnandez Gutiérrez"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(ISLR) # Datos
+library(caTools) #split de los datos
+library(ranger) # Paquetería del modelo de Random Forest
+#install.packages("ranger")
+library(tictoc)
+library(beepr)
+library(doParallel)
+```
+
+# Exploración de datos
+
+```{r}
+# Mini Exploración de datos
+data("Carseats")
+# https://rdrr.io/cran/ISLR/man/Carseats.html
+
+```
+
+```{r}
+# Asientos de auto infantiles
+# 400 tiendas distintas
+# Queremos hacer una clasificación para predecir si una tienda tiene ventas altas
+# o ventas bajas
+# Si nos basamos en el tercer cuartil, podemos decir que arriba de 9.32 son ventas altas, en este caso preferiremos usar 8 (Arriba del promedio)
+df <- Carseats
+summary(df$Sales)
+```
+
+```{r}
+colnames(df)
+
+```
+
+```{r}
+# tercer perceptil de ventas Nueva variable
+df <- df %>% 
+  mutate(sales_high = as.factor(if_else(Sales > 8, "yes", "not"))) %>%
+  select(-Sales)
+
+colnames(df)
+
+```
+
+```{r}
+summary(df$sales_high)
+```
+
+```{r}
+# Calculo del desvalance
+# 40% de desbalance, no requiere bootstraping
+164 / (236+164)
+```
+
+# Modelo
+
+## Split: División de los Datos
+
+```{r}
+set.seed(123)
+split_data <- sample.split(df, SplitRatio = 0.8) # 80% dados de train, 20% test
+train <- subset(df, split_data == TRUE) 
+test <- subset(df, split_data == FALSE)
+```
+
+## Optimización de hiperparámetros
+
+```{r}
+# Optimización de hiperparámetros
+# num_trees-> Número de árboles 
+# mtry-> Variables: Cantidad de variables aleatorias por cada árbol
+# max_depth-> Máxima profundidad
+
+# no importa como se llaman los hiperparametros
+# se nombraran en el ciclo for
+# Favor de entender que se van a hacer combinaciones con las opciones dadas en cada vector c(...,...)  tendremos num_trees * mtry * max_depth combinaciones
+# num_trees # número de árboles vector
+# mtry # hiperparámetros de los  features que tenemos N-1 (flag) vector. Tenemos 11 en total. no se puede usar aqui la flag
+# max_depth # máxima profundidad vector
+
+
+
+grid <- expand_grid('num_trees' = c(50, 100, 500,1000), 
+                    'mtry' = c(3,5,7, ncol(df)-1), 
+                    'max_depth' = c(3,5,7,10)) 
+```
+
+## Loop para ajustar el modelo a cada combinación de hiperparámetros
+
+```{r}
+# Loop para ajustar el modelo a cada combinación de hiperparámetros
+# Esto lo hace la paquetería de tiymodels automático
+
+# Creamos una lista de NA de la longitud del grid
+oob_error = rep(NA, nrow(grid))
+
+tic()
+for(i in 1:nrow(grid)){
+  modelo <- ranger(
+    formula = sales_high ~., #Variable de salida/ todos los demás son predictores
+    data = train,
+    num.trees = grid$num_trees[i],
+    mtry = grid$mtry[i],
+    max.depth =  grid$max_depth[i],
+    seed = 123
+  )
+  
+  oob_error[i] <- modelo$prediction.error
+}
+toc()
+```
+
+## Resultados
+
+```{r}
+results <- grid
+# Le agregamos a cada row el error, buscaremos el de menor error
+results$oob_error <- oob_error
+results <- results %>% arrange(oob_error) # Ordena de menor a mayor
+head(results,20)
+# Cuando tenemos resultados similares podemos comenzar a pensar en el performance, por ejemplo si tuvieramos una cantidad significativamente más grande de arboles entre 2 rows que tienen un error similar, hay que quedarnos con el de menos árboles para que el cálculo se realice más rápido. 
+# Adicional si vemos que hay patrones en los hioperparámetros podemos eliminar algunos valores de los vectores que no nos dan buenos escores y ampliar el rango entre los que si, por ejemplo, acá vemos que num_trees es mejor 500 y 1000
+```
+
+## Selección de los mejores hiperparámetros
+
+```{r}
+# Selección de los mejores hiperparámetros
+# Aquí seleccionamos el mejor, pero hay que tomar en cuenta en un aplicación real
+# los comentarios del code cell anterior
+best <- head(results,1)
+best
+```
+
+# GRID PERO BASADA EN VALIDACIÓN CRUZADA CON TIDYMODELS
+
+```{r}
+# definición del modelo (Usamos los 3 hiperparámetros de siempre.)
+
+model_rf<- rand_forest(
+  mode = "classification",
+  mtry = tune(),
+  trees = tune()# equivalente num.trees
+) %>%  #hiperparámetro que falta esta en engine ranger, se carga con set_engine
+  set_engine(engine = "ranger",
+                  max.depth = tune(),
+                  importance = "none",
+                  seed = 123 )
+```
+
+## Receta
+
+```{r}
+# preprocesado de datos (Aplicar receta)
+transformer <- recipe(formula = sales_high ~.,
+                      data = train)
+```
+
+## Validación cruzada
+
+```{r}
+# Validación cruzada 
+cv_folds <- vfold_cv(data = train,
+                     v = 5, # Subconjuntos
+                     strata = sales_high) #Variable de salida
+```
+
+## Workflow
+
+```{r}
+# Workflow. Aqui si hay que cuidar nombre de hiperparámetros en la grid
+def_workflow <- workflow() %>%  add_recipe(transformer) %>% 
+  add_model(model_rf)
+
+#Exactamente el mismo GRID
+# num_trees-> Número de árboles 
+# mtry-> Variables: Cantidad de variables aleatorias por cada árbol
+# max_depth-> Máxima profundidad
+
+# no importa como se llaman los hiperparametros
+# se nombraran en el ciclo for
+# Favor de entender que se van a hacer combinaciones con las opciones dadas en cada vector c(...,...)  tendremos num_trees * mtry * max_depth combinaciones
+# num_trees # número de árboles vector
+# mtry # hiperparámetros de los  features que tenemos N-1 (flag) vector. Tenemos 11 en total. no se puede usar aqui la flag
+# max_depth # máxima profundidad vector
+
+
+# Recordar que aqui  en la grid cambian los nombres
+grid_hiper <- expand_grid('trees' = c(50, 100, 500,1000), 
+                    'mtry' = c(3,5,7, ncol(df)-1), 
+                    'max.depth' = c(3,5,7,10))
+```
+
+```{r}
+# Optimización de hiperparámetros en el fit
+# Número de clusters
+cl <- makePSOCKcluster(parallel::detectCores() -1 )
+cl
+```
+
+## Fit del GRID
+
+```{r}
+registerDoParallel(cl)  
+tic() 
+grid_fit <- tune_grid(
+  object = def_workflow,
+  resamples = cv_folds, # validación cruzada, 5 particiones
+  metrics = metric_set(roc_auc,accuracy), 
+  grid = grid_hiper
+)  
+toc()
+stopCluster(cl)  
+  
+beep(1)
+```
+
+## Mejores hiperparámetros
+
+```{r}
+# Mejores hiper
+# metricas más importantes para clasificación roc, precision y record. 
+# relación de los buenos y los malos
+# esto porque los problemas de clasificación son muchas veces
+# desbalanceado
+# ponemos n=1 porque es el mejor hiperparametro
+show_best(grid_fit,metric = "roc_auc", n=1)
+```
+
+```{r}
+best_hiper <- select_best(grid_fit, metric = 'roc_auc')
+best_hiper
+```
+
+## Definición del modelo final
+
+```{r}
+# Definir MODELO FINAL
+final_model <- finalize_workflow(
+  x = def_workflow,
+  parameters = best_hiper) %>% 
+  fit(data = train) %>% extract_fit_parsnip()
+```
+
+## Visualización de predicciones
+
+```{r}
+# Prediccciones
+predicts <- final_model %>% predict(new_data = test) # SI/NO
+```
+
+```{r}
+# Agregarle una columna al lado
+predicts <- predicts %>% bind_cols(test %>% select(sales_high))
+predicts
+```
+
+```{r}
+# efectividad del modelo
+accuracy_metric <- accuracy(data = predicts,
+                            truth = 'sales_high',
+                            estimate = '.pred_class',
+                            na_rm = TRUE # no tomar en cuenta NAs
+                            )
+```
+
+```{r}
+# Matriz de confusión
+# en el caso de no, se equivoca en 9 tiendas. En el caso de si, se equivoca en 10
+confu_mat <- conf_mat(
+  data = predicts,
+  truth = 'sales_high',
+  estimate = '.pred_class'
+  )
+
+```
+
+```{r}
+# Predicción de probabilidad
+predict_prob <- final_model %>% predict(new_data = test, type = 'prob') # % Prob
+```
+
+```{r}
+# No como 0, si como 1
+# se puede mover el punto de corte, por ejemplo decir que arriba de .8 es si
+predicts <- predicts %>% cbind(predict_prob)
+```
+
+```{r}
+######## Importancia de los predictores
+# Pureza de los nodos. Ginny
+# Permutación es más demorado que Ginny
+modelo <- rand_forest(mode = 'classification') %>% 
+  set_engine(
+    engine = 'ranger',
+    importance = 'impurity',
+    seed = 123
+  )
+```
+
+```{r}
+modelo_final <- modelo %>% finalize_model(best_hiper)
+modelo_final <- modelo_final %>%  fit(sales_high ~.,
+                                      data = train)
+```
+
+```{r}
+# Importancia de los predictores
+importance_pred <- modelo_final$fit$variable.importance %>% enframe(name = 'Predictor', value = 'Importance')
+
+```
+
+```{r}
+# Grafico
+importance_pred %>% ggplot(
+  aes(x = reorder(Predictor, Importance), y = Importance, fill = Importance)) +
+  geom_col() + scale_fill_viridis_c() + coord_flip() +
+  theme(legend.position = 'none') + # quitar legend
+  labs( x = 'Predictores',
+        title = 'Importancia de predictores por pureza de nodos')
+```
+
+```{r}
+# Importancia por permutación
+modelo_per <- rand_forest(mode = 'classification') %>% 
+  set_engine(
+    engine = 'ranger',
+    importance = 'permutation',
+    seed = 123
+  )
+```
+
+```{r}
+modelo_final_per <- modelo_per %>% finalize_model(best_hiper)
+modelo_final_per <- modelo_final_per %>%  fit(sales_high ~.,
+                                      data = train)
+```
+
+```{r}
+# Importancia de los predictores
+modelo_final_per$fit$variable.importance
+
+importance_pred_per <- modelo_final_per$fit$variable.importance %>% 
+  enframe(name = 'Predictor', value = 'Importance')
+```
+
+```{r}
+# Grafico
+# Ejemplo: modelo es cuerpo humano, variable objetivo dolor
+# La maestra prefiere esta 
+importance_pred_per %>% ggplot(
+  aes(x = reorder(Predictor, Importance), y = Importance, fill = Importance)) +
+  geom_col() + scale_fill_viridis_c() + coord_flip() +
+  theme(legend.position = 'none') + # quitar legend
+  labs( x = 'Predictores',
+        title = 'Importancia de predictores por permutación')
+
+```

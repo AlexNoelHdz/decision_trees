@@ -1,0 +1,671 @@
+---
+title: "Vignette Title"
+author: "Vignette Author"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+Para el conjunto para determinar el riesgo de las personas que quieren hacer un préstamo en un bando, utilice árboles de decisión para estimar la variable de score de riesgo (probabilidad de pago) de los usuarios utilizando los siguientes modelos:
+
+\- Decision tree del paquete tidymodels
+
+\- En H2O
+
+\- Por medio de la paquetería (rpart), utilizando la poda del árbol.
+
+\- Por medio de la paquetería CARET **(consulta)**
+
+Compara tus resultados y saca tus conclusiones.
+
+# Obtención de datos
+
+En esta sección se importarán las librerías necesarias para obtención de datos, se cargará y previsualizará el set de datos.
+
+Tidyverse, para importar, ordenar, transformar y así entender los datos, para finalmente poder obtener y comunicar sus resultados de forma más fácil.
+
+```{r include=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(ggthemes)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(DataExplorer)
+library(caret)
+library(rpart)
+library(tidymodels)
+library(rpart.plot)
+```
+
+Carga de los datos
+
+```{r}
+data <- read.csv("data/Credit_default_dataset.txt")
+# Se renombran algunas variables y la variable dependiente a conveniencia del estudio
+
+# Renombrar PAY_MONTH
+data = rename(data, PAY_SEP = PAY_0)
+data = rename(data, PAY_AGO = PAY_2)
+data = rename(data, PAY_JUL = PAY_3)
+data = rename(data, PAY_JUN = PAY_4)
+data = rename(data, PAY_MAY = PAY_5)
+data = rename(data, PAY_ABR = PAY_6)
+
+# Renombrar BILL_AMT_MONTH
+data = rename(data, BILL_AMT_SEP = BILL_AMT1)
+data = rename(data, BILL_AMT_AGO = BILL_AMT2)
+data = rename(data, BILL_AMT_JUL = BILL_AMT3)
+data = rename(data, BILL_AMT_JUN = BILL_AMT4)
+data = rename(data, BILL_AMT_MAY = BILL_AMT5)
+data = rename(data, BILL_AMT_ABR = BILL_AMT6)
+
+# Renombrar PAY_AMT_MONTH
+data = rename(data, PAY_AMT_SEP = PAY_AMT1)
+data = rename(data, PAY_AMT_AGO = PAY_AMT2)
+data = rename(data, PAY_AMT_JUL = PAY_AMT3)
+data = rename(data, PAY_AMT_JUN = PAY_AMT4)
+data = rename(data, PAY_AMT_MAY = PAY_AMT5)
+data = rename(data, PAY_AMT_ABR = PAY_AMT6)
+
+# Se renombra variable dependiente
+data = rename(data, def_pay = default.payment.next.month)
+colnames(data)
+```
+
+# Análisis descriptivo y exploratorio de datos
+
+### Variables independientes
+
+ID: Id numérico para cada cliente.
+
+LIMIT_BAL: Límite de crédito dado a cada cliente en NT dollars.
+
+SEX: Género del cliente (1: Masculino. 2: Femenino).
+
+EDUCATION: Nivel de educación del cliente (1: Postgrado. 2: Universidad. 3: Secundaria. 4: Otro)
+
+MARIAGE: Estatus marital de un cliente: (1:Casado, 2: Soltero, 3:Otros)
+
+AGE: Edad del cliente en años.
+
+PAY_MONTH: Indica si el pago fue (-1: Pago adelantado un mes, -2: Pago adelantado dos meses, 1: Pago atrasado por un mes, 2: Pago atrasado 2 meses ... 8: Pago atrasado 8 meses o más) en (SEP: Septiembre, AGO: Agosto, JUL: Julio, JUN: Junio, MAY: Mayo, ABR: Abril) de 2005
+
+BILL_AMT_MONTH: Importe estado de cuenta en (SEP: Septiembre, AGO: Agosto, JUL: Julio, JUN: Junio, MAY: Mayo, ABR: Abril)de 2005 (NT Dollars)
+
+PAY_AMT_MONTH: Importe pagos ingresados en (SEP: Septiembre, AGO: Agosto, JUL: Julio, JUN: Junio, MAY: Mayo, ABR: Abril) de 2005 en NT dollars
+
+### Variable dependiente
+
+def_pay: El cliente incurrirá en default payment en el mes posterior (Yes: 1, No: 0) cuando incurra en incumplimiento de pago por algunos meses consecutivos.
+
+# Limpieza de datos
+
+Para detectar inconsistencias, se utiliza la función summary.
+
+Anomalías o datos intreresantes encontrados:
+
+-   30k registros
+
+-   Un mínimo de crédito de 10k, máximo de 1M.
+
+-   Variable sexo está bien.
+
+-   Variable EDUCATION presenta inconsistencias valores esperados: (1: Postgrado. 2: Universidad. 3: Secundaria. 4: Otro). Se corregirán inconsistencias mandando cualquier valor que no sea 1,2,3 como 4.
+
+-   Variable MARRIAGE presenta inconsistencias valores esperados: (1:Casado, 2: Soltero, 3:Otros). Se corregirán inconsistencias mandando cualquier valor que no sea 1,2 como 4.
+
+-   La edad oscila entre los 21 y 79 años, con una media de 34
+
+-   En la practica se ve que las variables PAY_1 - PAY_6 van de -2 a 8 y existe el 0. El 9 no existe. Se asumirá el 0 como pago al corriente.
+
+-   'SEX','EDUCATION','MARRIAGE','def_pay' es mejor que sean factores.
+
+```{r}
+kable(summary(data))
+```
+
+### Visualización de la frecuencia de aparición de los datos
+
+```{r}
+plot_histogram(data)
+```
+
+## Limpiando variables
+
+### Education
+
+```{r}
+data_clean <- data
+# Variable EDUCATION presenta inconsistencias valores esperados: (1: Postgrado. 2: Universidad. 3: Secundaria. 4: Otro). Se corregirán inconsistencias mandando cualquier valor que no sea 1,2,3, 4 como 4. 
+
+data_clean$EDUCATION <- ifelse(data_clean$EDUCATION %in% c(1, 2, 3, 4), data_clean$EDUCATION, 4)
+# Mostramos la variable EDUCATION corregida:
+data_clean %>% count(EDUCATION, sort = FALSE)
+```
+
+### Mariage
+
+```{r}
+# Variable MARRIAGE presenta inconsistencias valores esperados: (1:Casado, 2: Soltero, 3:Otros). Se corregirán inconsistencias mandando cualquier valor que no sea 1,2 como 4. 
+data_clean$MARRIAGE <- ifelse(data_clean$MARRIAGE %in% c(1, 2, 3), data_clean$MARRIAGE, 3)
+# Mostramos la variable MARRIAGE corregida:
+data_clean %>% count(MARRIAGE, sort = FALSE)
+```
+
+### Convertir a factores variable PAY que considera los meses de atraso, pago puntual o adelanto.
+
+```{r}
+# En el summary de los datos, podemos ver que no hay pagos adelantados por más de 8 meses.
+# Veamos una de esas variables para entender su comportamiento
+PAY_COUNT <- data_clean %>% count(PAY_SEP, sort = FALSE)
+kable(PAY_COUNT)
+PAY_COUNT <- data_clean %>% count(PAY_AGO, sort = FALSE)
+kable(PAY_COUNT)
+PAY_COUNT <- data_clean %>% count(PAY_JUL, sort = FALSE)
+kable(PAY_COUNT)
+PAY_COUNT <- data_clean %>% count(PAY_JUN, sort = FALSE)
+kable(PAY_COUNT)
+PAY_COUNT <- data_clean %>% count(PAY_MAY, sort = FALSE)
+kable(PAY_COUNT)
+PAY_COUNT <- data_clean %>% count(PAY_ABR, sort = FALSE)
+kable(PAY_COUNT)
+```
+
+Convertir a factor variables de pay. Al convertir a factores R junta automáticamente los outliers. En este caso de estudio se considera que si el cliente no pagó en más de 3 o 4 meses ya no hay diferencia notable que afecte a la variable a predecir, esto se demostrará con el resultado de los arboles o se retomará el dataset original para hacer correcciones.
+
+```{r}
+data_clean_f <- data_clean
+#factor_vars <- c('PAY_SEP','PAY_AGO','PAY_JUL','PAY_JUN', 'PAY_MAY','PAY_ABR')
+
+
+#data_clean_f[factor_vars] <- lapply(data_clean_f[factor_vars], function(x) as.factor(x))
+#kable(summary(data_clean_f[factor_vars]))
+```
+
+### Convertir a factores SEX, EDUCATION, MARRIAGE y def_pay
+
+Los factores son un tipo de datos estadistico en r que almacena variables categóricas.
+
+```{r}
+factor_vars <- c('SEX','EDUCATION','MARRIAGE','def_pay')
+
+data_clean_f$SEX <- factor(data_clean_f$SEX, levels = c(1, 2 ), labels = c("Masculino", "Femenino"))
+
+data_clean_f$EDUCATION <- factor(data_clean_f$EDUCATION, levels = c(1, 2 ,3 , 4), labels = c("Postgrado", "Universidad", "Secundaria", "Otros"))
+
+data_clean_f$MARRIAGE <- factor(data_clean_f$MARRIAGE, levels = c(1, 2 , 3), labels = c("Casado", "Soltero", "Otros"))
+
+data_clean_f$def_pay <- factor(data_clean_f$def_pay, levels = c(1, 0 ), labels = c("Si", "No"))
+
+kable(summary(data_clean_f[factor_vars]))
+```
+
+Se observa que la variable flag (def_pay) está un poco desbalanceada, pero para este objeto de estudio no se considera necesario hacer un tratamiento adicional.
+
+A continuación se observa que no existen missing fields, que todas las observaciones están completasy se visualiza la cantidad de columnas discretas y continuas:
+
+```{r}
+plot_intro(data_clean_f)
+```
+
+### Relación entre el nivel de educación y si el cliente incurrirá en default payment
+
+```{r}
+ggplot(data_clean_f, aes(x = EDUCATION, fill = def_pay)) +
+  geom_bar() +
+  labs(x = 'Education') +
+  theme_excel()
+```
+
+### Relación entre la edad y si el cliente incurrirá en default payment
+
+```{r}
+ggplot(data_clean_f, aes(x = AGE, fill = def_pay)) +
+  geom_bar() +
+  labs(x = 'Age') +
+  theme_excel()
+```
+
+### Relación entre sexo y si el cliente incurrirá en default payment
+
+```{r}
+ggplot(data_clean_f, aes(x = SEX, fill = def_pay)) +
+  geom_bar() +
+  labs(x = 'Sex') +
+  theme_economist_white()
+```
+
+### Relación entre el estado civil y si el cliente incurrirá en default payment
+
+```{r}
+ggplot(data_clean_f, aes(x = MARRIAGE, fill = def_pay)) +
+  geom_bar() +
+  labs(x = 'Mariage') +
+  theme_excel()
+```
+
+### Relación entre la educación, edad y si el cliente incurrirá en def pay
+
+```{r}
+ggplot(data_clean_f, aes(AGE, fill = def_pay)) + 
+  geom_histogram(binwidth = 6) + 
+  facet_grid(.~EDUCATION) + 
+  theme_fivethirtyeight()
+```
+
+### Mapa de correlación pago al corriente/atrasado
+
+Es posible notar que existe una correlación alta entre un mes con su mes inmediato anterior.
+
+AGO-JUL: 0.77
+
+JUL-JUN: 0.78
+
+JUN-MAY: 0.82
+
+MAY-ABR: 0.82
+
+```{r}
+pay_columns = c("PAY_SEP", "PAY_AGO", "PAY_JUL", "PAY_JUN", "PAY_MAY", "PAY_ABR")
+dthm <- data_clean_f[pay_columns]
+
+data_cor <- cor(dthm[sapply(dthm,is.numeric)])
+ 
+data_melt <- melt(data_cor)
+ 
+ggplot(data_melt, aes(x = Var1, y = Var2, 
+                      fill = value, 
+                      label = round(value,2)))+
+                    geom_tile() +  
+                    geom_text(size = 3) +
+                    scale_fill_gradient(low = "blue", high = "red") +
+                    theme_minimal()
+```
+
+### Prueba de multicolinealidad
+
+#### Construimos el modelo de regresión lineal
+
+```{r}
+# Dividir los datos en conjuntos de entrenamiento y prueba
+set.seed(123) # Establecer una semilla para reproducir los resultados
+entrenamiento_porcentaje <- 0.7 # Proporción de los datos que se utilizarán para entrenamiento
+datos_entrenamiento_lm <- data_clean %>% 
+  group_by(def_pay) %>% # Agrupar por variable flag
+  sample_frac(entrenamiento_porcentaje) # Muestra aleatoria una vez agrupado
+
+datos_prueba_lm <- anti_join(data_clean, datos_entrenamiento_lm, by = c("ID"))
+```
+
+```{r}
+#Construimos el modelo de Regresión
+modelo_lm <- lm(def_pay ~., data = datos_entrenamiento_lm)
+
+kable(coef(modelo_lm))
+```
+
+```{r}
+#Se hacen predicciones
+predicciones <- modelo_lm %>% predict(datos_prueba_lm)
+```
+
+```{r}
+#Revisamos el desempeño del modelo con RMSE de CARET
+
+data.frame(RMSE=RMSE(predicciones, datos_prueba_lm$def_pay),R2=R2(predicciones,datos_prueba_lm$def_pay))
+
+# Cómo vemos, el RMSE parece aceptable
+```
+
+#### Detectando multicolinealidad
+
+Hay mucha bibliografía sobre el tema, sin embargo uno de los Paper más recientes "Johnston R, Jones K, Manley D. Confounding and collinearity in regression analysis: a cautionary tale and an alternative procedure, illustrated by studies of British voting behaviour." indica que un VIF mayor o igual que 2.5 indica colinealidad considerable, por lo que se decide probar el modelo nuevamente sin las variables que tengan arriba de 3.
+
+```{r}
+kable(car::vif(modelo_lm))
+```
+
+```{r}
+data_clean_multi <- select(data_clean, -BILL_AMT_SEP, -BILL_AMT_AGO, -BILL_AMT_JUL, -BILL_AMT_JUN, -BILL_AMT_MAY, -BILL_AMT_ABR, -PAY_AGO, -PAY_JUL, -PAY_JUN, -PAY_MAY, -PAY_ABR)
+kable(colnames(data_clean_multi))
+```
+
+```{r}
+entrenamiento_porcentaje <- 0.7 # Proporción de los datos que se utilizarán para entrenamiento
+datos_entrenamiento_lm_multi <- data_clean_multi %>% 
+  group_by(def_pay) %>% # Agrupar por variable flag
+  sample_frac(entrenamiento_porcentaje) # Muestra aleatoria una vez agrupado
+
+datos_prueba_lm_multi <- anti_join(data_clean_multi, datos_entrenamiento_lm_multi, by = c("ID"))
+```
+
+```{r}
+modelo_lm_new <- lm(def_pay ~., data = datos_entrenamiento_lm_multi)
+kable(coef(modelo_lm_new))
+```
+
+#### Podemos ver que nos da un RMSE similar quitando un montón de columnas:
+
+```{r}
+predicciones <-modelo_lm_new %>% predict(datos_prueba_lm_multi)
+data.frame(RMSE=RMSE(predicciones, datos_prueba_lm_multi$def_pay),R2=R2(predicciones,datos_prueba_lm_multi$def_pay))
+```
+
+#### Y el modelo ya no presenta multicolinealidad:
+
+```{r}
+kable(car::vif(modelo_lm_new))
+```
+
+Pues bien, en conclusión esto nos sirve para eliminar las columnas que generan multicolinealidad y dejar un dataset más limpio para iniciar con el modelo.
+
+## Drop columnas con multicolinealidad del DF clean
+
+```{r}
+data_clean_trees <- select(data_clean_f, -BILL_AMT_SEP, -BILL_AMT_AGO, -BILL_AMT_JUL, -BILL_AMT_JUN, -BILL_AMT_MAY, -BILL_AMT_ABR, -PAY_AGO, -PAY_JUL, -PAY_JUN, -PAY_MAY, -PAY_ABR)
+kable(colnames(data_clean_trees))
+```
+
+# Partición de datos con conjunto de datos completo
+
+```{r}
+entrenamiento_porcentaje <- 0.7 # Proporción de los datos que se utilizarán para entrenamiento
+datos_entrenamiento <- data_clean %>% 
+  group_by(def_pay) %>% # Agrupar por variable flag
+  sample_frac(entrenamiento_porcentaje) # Muestra aleatoria una vez agrupado
+
+datos_prueba <- anti_join(data_clean, datos_entrenamiento, by = c("ID"))
+```
+
+# Árbol de decisión CARET
+
+## Hiperparámetros
+
+Los hiperparámetros a considerar en este caso son
+
+cp: complejidad del árbol (un número positivo). Controla la cantidad de divisiones que se realizan en el árbol. Valores más altos de cp generan árboles más pequeños y menos complejos, mientras que valores más bajos generan árboles más grandes y más complejos.
+
+minsplit: número mínimo de observaciones necesarias en un nodo para poder dividirlo en subnodos.
+
+n.trees o maxdepth: profundidad máxima del árbol (un número positivo).
+
+Con estos hiperparametros se genera un grid de combinaciones y se correra el modelo con todas ellas para encontrar la combinación óptima.
+
+```{r}
+# Set de datos para este modelo
+data_caret <- data_clean_trees
+```
+
+## Crear partición prueba y entrenamiento con paquetería caret
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data_caret$def_pay, p = 0.7, list = FALSE)
+datos_train_caret <- data_caret[train_index, ]
+datos_prueba_caret <- data_caret[-train_index, ]
+```
+
+## Definición del grid de hiperparámetros
+
+```{r}
+grid_caret <- expand.grid(
+   cp = c(0.0001, 0.001, 0.35, 0.65)   
+    )
+```
+
+## Train Control
+
+```{r}
+train_control <- trainControl(
+                    method = "repeatedcv"
+                    , number = 10
+                    , repeats = 10
+    )
+```
+
+## Modelo con train, paquetería CARET
+
+```{r}
+model_caret <- caret::train(
+  def_pay ~ .,
+  data = datos_train_caret, 
+  method = 'rpart',
+  trControl = train_control, 
+  tuneGrid = grid_caret)
+```
+
+## Predicciones y matriz de confusión
+
+```{r}
+predicciones_caret <- predict(model_caret, newdata = datos_prueba_caret)
+confusionMatrix(predicciones_caret, datos_prueba_caret$def_pay)
+```
+
+# Árbol de decisión Rpart con poda del árbol
+
+Para este ejemplo se utiliza el conjunto de datos completo (dividido en datos_entrenamiento y datos_prueba, para después aplicar poda)
+
+```{r}
+model_tree_rpart <- rpart(
+  formula = def_pay~.,
+  data = datos_entrenamiento,
+  control = rpart.control(minsplit = 20, maxdepth = 28))
+model_tree_rpart
+```
+
+```{r}
+library(rpart.plot)
+rpart.plot(model_tree_rpart)
+```
+
+## Poda por medio de cost complexity y validación cruzada
+
+No es necesaria.
+
+```{r}
+model_tree_regression <- tree::tree(
+  formula = def_pay~.,
+  data = datos_entrenamiento,
+  split = "deviance", # Método 
+  )
+```
+
+```{r}
+predicciones_rpart  <- predict(model_tree_regression, newdata = datos_entrenamiento)
+```
+
+# Árbol de decisión Tidymodels
+
+```{r}
+tidy_split <- initial_split(data_clean_f, prop = 0.7, strata = "def_pay")
+
+tidy_train <- training(tidy_split)
+tidy_test <- testing(tidy_split)
+```
+
+```{r}
+model_tidy<- rand_forest(
+  mode = "classification",
+  mtry = tune(),# hiperparámetros de los features que tenemos N-1 (flag)
+  trees = 1 # 1 Arbol de decisión simple jaja
+) %>%  set_engine(engine = "ranger",
+                  max.depth = tune(),
+                  importance = "none",
+                  seed = 123 )
+```
+
+```{r}
+# preprocesado de datos
+transformer <- recipe(formula = def_pay ~.,
+                      data = tidy_train)
+
+# Validación cruzada 
+cv_folds <- vfold_cv(data = tidy_train,
+                     v = 5,
+                     strata = def_pay)
+  
+
+# Workflow. Aqui si hay que cuidar nombre de hiperparámetros en la grid
+def_workflow <- workflow() %>%  add_recipe(transformer) %>% 
+  add_model(model_tidy)
+```
+
+```{r}
+grid_hiper <- expand_grid( 
+                    'mtry' = c(3,5,7, ncol(df)-1), # Numero de predictores que se muestrearán aleatoriamente en cada división al crear los modelos de árbol.
+                    'max.depth' = c(3,5,7,10)) # máxima profundidad
+```
+
+```{r}
+  # Optimización de hiperparámetros en el fit
+# Número de clusters
+cl <- makePSOCKcluster(parallel::detectCores() -1 )
+registerDoParallel(cl)  
+
+
+grid_fit <- tune_grid(
+  object = def_workflow,
+  resamples = cv_folds, # validación cruzada
+  metrics = metric_set(roc_auc,accuracy), 
+  grid = grid_hiper
+)  
+
+stopCluster(cl) 
+```
+
+```{r}
+# Mostramos del grid la mejor configuración!
+show_best(grid_fit,metric = "roc_auc", n=1)
+```
+
+```{r}
+best_hiper <- select_best(grid_fit, metric = 'roc_auc')
+# Definir MODELO FINAL
+final_model_tidy <- finalize_workflow(
+  x = def_workflow,
+  parameters = best_hiper) %>% 
+  fit(data = tidy_train) %>% extract_fit_parsnip()
+
+# Prediccciones
+predicts_tidy <- final_model_tidy %>% predict(new_data = tidy_test) # SI/NO
+
+# Agregarle una columna al lado
+predicts_tidy <- predicts_tidy %>% bind_cols(tidy_test %>% select(def_pay))
+```
+
+```{r}
+# efectividad del modelo
+accuracy_metric <- accuracy(data = predicts_tidy,
+                            truth = 'def_pay',
+                            estimate = '.pred_class',
+                            na_rm = TRUE # no tomar en cuenta NAs
+                            )
+accuracy_metric
+```
+
+## Plus! Matriz de confusión
+
+```{r}
+# Matriz de confusión
+# en el caso de no, se equivoca en 9 tiendas. En el caso de si, se equivoca en 10
+confu_mat <- conf_mat(
+  data = predicts_tidy,
+  truth = 'def_pay',
+  estimate = '.pred_class'
+  )
+confu_mat
+```
+
+# H2o
+
+```{r}
+library(h2o)
+h2o.init(ip = 'localhost',
+         nthreads = -1, # -1 indica que se emplean todos los cores disponibles
+         max_mem_size = '6g' # máxima memoria disponible para el cluster
+)
+h2o.removeAll()
+```
+
+```{r}
+data_h2o <- as.h2o(x = data_clean_f,destination_frame = "data_h2o")
+```
+
+```{r}
+partition_h2o <- h2o.splitFrame(data = data_h2o,ratio = c(0.6,0.2),seed = 123)
+
+data_train_h2o <- h2o.assign(data = partition_h2o[[1]],key = "data_train_h2o")
+data_val_h2o <- h2o.assign(data = partition_h2o[[2]],key = "data_val_h2o")
+data_test_h2o <- h2o.assign(data = partition_h2o[[3]],key = "data_test_h2o")
+```
+
+```{r}
+grid_h2o_hyperpm <- list(ntrees = 1,
+                         max_depth = seq(1,20, by = 3),
+                         min_rows = seq(2,50, by = 3),
+                         sample_rate = c(0.55,0.632,0.75)
+                         )
+searchparam <- list(strategy = "RandomDiscrete",
+                    stopping_metric = "AUC",
+                    stopping_tolerance = 0.005,
+                    stopping_rounds = 10,
+                    max_runtime_secs = 600)
+```
+
+```{r}
+grid <- h2o.grid(algorithm = "randomForest",
+                 y = "def_pay",
+                 grid_id = "default",
+                 training_frame = data_train_h2o,
+                 validation_frame = data_val_h2o,
+                 nfolds = 5,
+                 hyper_params = grid_h2o_hyperpm,
+                 search_criteria = searchparam
+)
+```
+
+```{r}
+selectedparam <- h2o.getGrid(grid_id = "default",
+                             sort_by = "AUC",
+                             decreasing = TRUE
+)
+```
+
+```{r}
+bestmodel <- h2o.getModel(selectedparam@model_ids[[1]])
+
+prediction_h2o <-  as_tibble(h2o.predict(object = bestmodel,
+                                        newdata = data_test_h2o))
+
+prediction_h2o <- prediction_h2o %>% bind_cols(as.data.frame(data_test_h2o$def_pay))
+
+```
+
+```{r}
+prediction_h2o <- as.data.frame(prediction_h2o)
+indx <- sapply(prediction_h2o, is.factor)
+prediction_h2o[indx] <- lapply(prediction_h2o[indx], function(x) as.numeric(x))
+prediction_h2o
+```
+
+```{r}
+confusionMatrix(as.factor(prediction_h2o$predict),as.factor( prediction_h2o$def_pay))
+```
+
+# Conclusión
+
+Todos los árboles tienen accuracy similar después de una buena exploración y limpieza de datos
+
+Caret Accuracy : 0.8159
+
+Rpart Accuracy: 0.8203
+
+Tidymodels Accuracy: 0.8193534
+
+H20 Accuracy: 0.8031
+
+# 

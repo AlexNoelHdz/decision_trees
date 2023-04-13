@@ -1,0 +1,337 @@
+---
+title: "Práctica 2. Tidymodels"
+author: "Alejandro Noel Hernández  Gutiérrez"
+date: "2023_01_31"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+vignette: >
+  %\VignetteIndexEntry{Práctica 2. Tidymodels}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r results=FALSE, message=FALSE, warning=FALSE}
+# Librerías importantes
+library(tidyverse)
+library(tidymodels)
+library(doParallel)
+```
+
+```{r results=FALSE, message=FALSE, warning=FALSE}
+# Tablas sencillas
+library(kableExtra)
+# Tablas páginadas customizadas
+library(DT)
+# Funcion para obtener datatable (datos, indice tabla, nombre)
+custom_dt <- function(data, indice, nombre) {
+  table_n <- paste("Table ", indice) 
+  dt <- datatable(data,
+                  caption = htmltools::tags$caption(
+                  style = 'caption-side: bottom; text-align: center;',
+                  table_n, htmltools::em(nombre)),
+                  extensions = 'FixedColumns',
+                  rownames= FALSE,
+                  filter = 'top',
+                  options = list(
+                  pageLength = 5,
+                  autoWidth = TRUE,
+                  columnDefs = 
+                  list(list(width = '300px', targets = c(0,7))),
+                  scrollX = TRUE,
+                  escape = T)
+                  )
+  return(dt)
+}
+
+```
+
+```{r}
+custom_kable<- function(data) {
+    kable(data, "html") %>% 
+    kable_styling() %>% 
+    scroll_box(
+      width = "500px", 
+      height = "200px")
+}
+ 
+```
+
+# Obtención y exploración de datos.
+
+Para este ejercicio utilizaremos los datos de ames que se encuentra
+dentro de la paquetería de modeldata.
+
+NOTA: Deben instalar primero el paquete de modeldata, luego ejecutar el
+comando de su librería (library(modeldata)) y para ejecutar los datos lo
+hacen con el comando data(ames).
+
+```{r}
+library(modeldata)
+data <- ames
+
+custom_dt(data, 1, "Ames dataset.")
+```
+
+## Exploración de datos con respecto a la flag (precio)
+
+### Summary
+
+Aquí se pueden visualizar rápido las variables categóricas y continuas.
+
+```{r}
+custom_kable(summary(data))
+```
+
+### Visualización de MS_SubClass, para descubrir todas sus clases
+
+La intención inicial era ver si se podía tomar las de repeticiones más
+bajas y catalogarlas como "other", esto no se realiza.
+
+```{r}
+kable(data %>% count(MS_SubClass, sort = TRUE), "html")
+```
+
+## Revisar qué variables son factores
+
+```{r}
+for (col in colnames(data)){
+   s <- paste(col,":", class(data[[col]]))
+   print(s)
+}
+```
+
+### Convertir una columna ejemplo a factor
+
+En este ejemplo se visualiza de forma rápida como convertir una variable
+numérica a factor, se imprime la clase del dataframe original y del
+manipulado para ver la diferencia
+
+```{r}
+de1 <- data %>% mutate(Lot_Frontage = as.factor(Lot_Frontage))
+class(data$Lot_Frontage)
+class(de1$Lot_Frontage )
+```
+
+### Todo el dataframe como factor
+
+Esto termina sin usarse porque la receta hace ese procesamiento si es
+necesario
+
+```{r}
+# lappply function is used with a list and performs the following operations
+# in this case we convert all variables to factors
+#df_factor <- data
+#df_factor[] <-lapply(data, as.factor)
+```
+
+## Tidymodels flujo
+
+### Definición del modelo
+
+```{r}
+# División entrenamiento y prueba
+set.seed(123)
+split_inicial <- initial_split(
+                    data   = data, # datos que queremos dividir
+                    prop   = 0.8, # Proporción del 80%
+                    strata = Sale_Price # Variable respuesta 
+                 )
+data_train <- training(split_inicial) # 80
+data_test  <- testing(split_inicial)  # 20
+```
+
+```{r}
+# Revisar que la distribución sea similar con media y mediana
+summary(data_train$Sale_Price)
+summary(data_test$Sale_Price)
+```
+
+### Optimización de hiperparámetros
+
+### Aplicar receta
+
+`all_predictors()`, and `all_outcomes()` can be used to select variables
+in a formula that have certain roles.
+
+The outcome variable is also called the **response** or **dependent
+variable,** and the risk factors and confounders are called the
+**predictors**, or **explanatory** or **independent variables**. In
+regression analysis, the dependent variable is denoted "Y" and the
+independent variables are denoted by "X".
+
+En español, estas se traducen como variable predictora y de respuesta.
+En nuestro caso, la variable de respuesta, dependiente o outcome es
+Sale_Price.
+
+```{r}
+transformer <- recipe(
+                  formula = Sale_Price ~ .,
+                  data =  data_train
+               ) %>%
+  # Will remove observations if they contain NA or NaN values.
+  step_naomit(all_predictors()) %>%
+  # Identifica y elimina predictores con varianza 0
+  step_nzv(all_predictors()) %>% 
+  # Centralización de datos (desviación estandar)
+  step_center(all_numeric(), -all_outcomes()) %>%
+  # escalamiento es con variables numéricas
+  step_scale(all_numeric(), -all_outcomes()) %>%
+  # Quita multicolinealidad en R. Las nominales son las categóricas. 
+  step_dummy(all_nominal(), -all_outcomes())
+
+transformer
+```
+
+### Entrenamiento de la receta
+
+```{r}
+# Se entrena el objeto recipe
+transformer_fit <- prep(transformer)
+
+# Se aplican las transformaciones al conjunto de entrenamiento y de test
+data_train_prep <- bake(transformer_fit, new_data = data_train)
+data_test_prep  <- bake(transformer_fit, new_data = data_test)
+
+```
+
+```{r}
+kable(glimpse(data_train_prep), "html")
+```
+
+Tenemos entonces 212 predictores y la variable respuesta Sale_Price
+
+### Workflows con definición del modelo, optimización de hiperparámetros (bayesiana) , validación cruzada, entrenamiento y predicción
+
+## Predicción del precio SVM tidymodels
+
+```{r}
+# Definición del modelo y los hiperparámetros a optimizar
+modelo_svm <- svm_rbf(
+  mode      = "regression",
+  cost      = tune(),
+  rbf_sigma = tune(),
+  margin    = tune()
+  ) %>%
+  set_engine(engine = "kernlab")
+```
+
+```{r}
+# Procesado
+transformer <- recipe(
+  formula = Sale_Price ~ .,
+  data =  data_train ) %>%
+  # Will remove observations if they contain NA or NaN values.
+  step_naomit(all_predictors()) %>%
+  # Identifica y elimina predictores con varianza 0
+  step_nzv(all_predictors()) %>% 
+  # Centralización de datos (desviación estandar)
+  step_center(all_numeric(), -all_outcomes()) %>%
+  # escalamiento es con variables numéricas
+  step_scale(all_numeric(), -all_outcomes()) %>%
+  # Quita multicolinealidad en R. Las nominales son las categóricas. 
+  step_dummy(all_nominal(), -all_outcomes())
+```
+
+```{r}
+# Estrategia de validación y creación de particiones
+set.seed(1234)
+cv_folds <- vfold_cv(
+              data    = data_train,
+              v       = 5,
+              strata  = Sale_Price
+             )
+```
+
+```{r}
+# Workflow
+workflow_modelado <- workflow() %>%
+  add_recipe(transformer) %>%
+  add_model(modelo_svm)
+```
+
+```{r}
+# Grid hiperparámetros
+hiperpar_grid <- grid_random(
+  # Rango de búsqueda para cada hiperparámetro
+  cost(range = c(-10, -1), trans = log2_trans()),
+  rbf_sigma(range = c(-10, 0), trans = log10_trans()),
+  svm_margin(range = c(0, 0.2), trans = NULL), 
+  # Número de combinaciones totales
+  size = 100)
+```
+
+```{r}
+# Optimización de hiperparámetros
+registerDoParallel(cores = parallel::detectCores() - 1)
+grid_fit <- tune_grid(
+              object    = workflow_modelado,
+              resamples = cv_folds,
+              metrics   = metric_set(rmse),
+              control   = control_resamples(save_pred = TRUE),
+              # Hiperparámetros
+              grid      = hiperpar_grid
+            )
+stopImplicitCluster()
+```
+
+```{r}
+# Mostramos los hiperparámetros obtenidos en la optimización
+custom_dt(show_best(grid_fit, metric = "rmse", n = 10), 2, "SVM Resultados de la optimización")
+```
+
+```{r}
+# Utilizamos los hiperparámetros óptimos para el modelo
+best_hiper <- select_best(grid_fit, metric = "rmse")
+
+modelo_svm <- finalize_workflow(
+                  x = workflow_modelado,
+                  parameters = best_hiper
+              )
+
+modelo_svm_fit <- modelo_svm %>%
+                  fit(
+                    data = data_train
+                  )
+```
+
+```{r}
+# Guardar las predicciones del test
+predicciones <- modelo_svm_fit %>%
+                predict(
+                  new_data = data_test,
+                  type     = "numeric"
+                )
+```
+
+```{r}
+# Encontrar el error
+predicciones <- predicciones %>% 
+                bind_cols(data_test_prep %>% select(Sale_Price))
+
+error_test_svm <- rmse(
+                     data     = predicciones,
+                     truth    = Sale_Price,
+                     estimate = .pred,
+                     na_rm    = TRUE
+                   ) %>%
+                   mutate(
+                     modelo = "SVM"
+                   )
+error_test_svm
+```
+
+```{r}
+# Visualizar las predicciones
+kable(predicciones)
+```
+
+## Predicción del precio Arbol de desición Tidymodels
+
+## Predicción del precio Regularized Regression
+
+## Comparativa de resultados
