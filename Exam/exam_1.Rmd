@@ -1,6 +1,6 @@
 ---
-title: "Vignette Title"
-author: "Vignette Author"
+title: "Arboles de clasificacion en R"
+author: "Alejandro Noel Hernandez Gutierrez"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -667,7 +667,7 @@ prediction_h2o <- prediction_h2o %>% bind_cols(as.data.frame(data_test_h2o$def_p
 prediction_h2o <- as.data.frame(prediction_h2o)
 indx <- sapply(prediction_h2o, is.factor)
 prediction_h2o[indx] <- lapply(prediction_h2o[indx], function(x) as.numeric(x))
-prediction_h2o
+head(prediction_h2o)
 ```
 
 ```{r}
