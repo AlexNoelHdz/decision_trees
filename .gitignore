@@ -50,3 +50,6 @@ rsconnect/
 
 # Secrets folder
 secrets/
+
+# To large data file 
+0_decision-trees_python/data/*
