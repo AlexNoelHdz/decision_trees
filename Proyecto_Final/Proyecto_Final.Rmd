@@ -65,6 +65,7 @@ library(rpart.plot)
 library(tictoc)
 library(beepr)
 library(xgboost)
+library(h2o)
 ```
 
 # Exploración de datos
@@ -334,7 +335,7 @@ final_model_tidy <- finalize_workflow(
   fit(data = tidy_train) %>% extract_fit_parsnip()
 ```
 
-## Predicciones con datos balanceados de test
+## Predicciones con datos desbalanceados de test
 
 ```{r}
 # Prediccciones con 
@@ -351,7 +352,7 @@ accuracy_metric <- accuracy(data = predicts_tidy,
 accuracy_metric
 ```
 
-## Confusión Matrix de datos balanceados de test
+## Confusión Matrix de datos desbalanceados de test
 
 ```{r}
 # Matriz de confusión
@@ -367,14 +368,15 @@ confu_mat
 ## Error de test
 
 ```{r}
+accuracy_ <- accuracy_metric$.estimate
 # Calcular el error de prueba como 1 - precisión
-test_error <- 1 - 0.75324
+test_error <- 1 - accuracy_
 
 # Imprimir el error de prueba
 cat("Error de prueba:", test_error, "\n")
 ```
 
-## Predicciones con datos desbalanceados de train
+## Predicciones con datos balanceados de train
 
 ```{r}
 # Prediccciones con 
@@ -392,7 +394,7 @@ accuracy_metric <- accuracy(data = predicts_tidy,
 accuracy_metric
 ```
 
-## Confusión matrix con datos desbalanceados de train
+## Confusión matrix con datos balanceados de train
 
 ```{r}
 # Matriz de confusión
@@ -408,8 +410,9 @@ confu_mat
 ## Error de train
 
 ```{r}
+accuracy_ <- accuracy_metric$.estimate
 # Calcular el error de prueba como 1 - precisión
-train_error <- 1 - 0.78738
+train_error <- 1 - accuracy_
 
 # Imprimir el error de entrenamiento
 cat("Error de entrenamiento:", train_error, "\n")
@@ -426,40 +429,203 @@ imp_var <- varImp(modelo_caret_rf, scale = FALSE) # calcular la importancia de l
 print(imp_var) # mostrar los resultados
 ```
 
+# Solución H2o
+
+```{r}
+library(h2o)
+h2o.init(ip = 'localhost',
+         nthreads = -1, # -1 indica que se emplean todos los cores disponibles
+         max_mem_size = '6g' # máxima memoria disponible para el cluster
+)
+```
+
+```{r}
+h2o.removeAll()
+```
+
+```{r}
+# Se mandan datos balanceados para train y desbalanceados para validación y test
+data_train_h2o <- as.h2o(x = balanced_train,destination_frame = "data_train_h2o")
+data_val_h2o <- as.h2o(x = unbalanced_train,destination_frame = "data_val_h2o")
+data_test_h2o <- as.h2o(x = unbalanced_test,destination_frame = "data_test_h2o")
+```
+
+```{r}
+# Grid de hiperparámetros h20
+grid_h2o_hyperpm <- list(ntrees = 1,
+                         max_depth = seq(1,20, by = 3),
+                         min_rows = seq(2,50, by = 3),
+                         sample_rate = c(0.55,0.632,0.75)
+                         )
+# Estrategia de busqueda del mejor conjunto de hiperparámetros
+searchparam <- list(strategy = "RandomDiscrete",
+                    stopping_metric = "AUC",
+                    stopping_tolerance = 0.005,
+                    stopping_rounds = 10,
+                    max_runtime_secs = 600)
+```
+
+```{r}
+grid <- h2o.grid(algorithm = "randomForest",
+                 y = "Outcome",
+                 grid_id = "default",
+                 training_frame = data_train_h2o,
+                 validation_frame = data_val_h2o,
+                 nfolds = 5,
+                 hyper_params = grid_h2o_hyperpm,
+                 search_criteria = searchparam
+)
+```
+
+```{r}
+# Obtener del grid los selected parameters
+selectedparam <- h2o.getGrid(grid_id = "default",
+                             sort_by = "AUC",
+                             decreasing = TRUE
+)
+```
+
+```{r}
+#Obtener el mejor modelo
+bestmodel <- h2o.getModel(selectedparam@model_ids[[1]])
+```
+
+## Predicciones con datos desbalanceados de test
+
+```{r}
+
+prediction_h2o <-  as_tibble(h2o.predict(object = bestmodel,
+                                        newdata = data_test_h2o))
+prediction_h2o <- prediction_h2o %>% bind_cols(as.data.frame(data_test_h2o$Outcome))
+prediction_h2o <- as.data.frame(prediction_h2o)
+indx <- sapply(prediction_h2o, is.factor)
+prediction_h2o[indx] <- lapply(prediction_h2o[indx], function(x) as.numeric(x))
+head(prediction_h2o)
+```
+
+```{r}
+cm <- confusionMatrix(as.factor(prediction_h2o$predict),as.factor( prediction_h2o$Outcome))
+cm
+```
+
+```{r}
+# Analizamos como obtener dinamicamente el accuracy
+str(cm)
+```
+
+## Error con datos desbalanceados de test
+
+```{r}
+overall_accuracy <- cm$overall['Accuracy'] 
+# Calcular el error de prueba como 1 - precisión
+test_error <- 1 - overall_accuracy
+# Imprimir el error de prueba
+cat("Error de prueba:", test_error, "\n")
+```
+
+## Predicciones con datos balanceados de train
+
+```{r}
+prediction_h2o <-  as_tibble(h2o.predict(object = bestmodel,
+                                        newdata = data_train_h2o))
+prediction_h2o <- prediction_h2o %>% bind_cols(as.data.frame(data_train_h2o$Outcome))
+prediction_h2o <- as.data.frame(prediction_h2o)
+indx <- sapply(prediction_h2o, is.factor)
+prediction_h2o[indx] <- lapply(prediction_h2o[indx], function(x) as.numeric(x))
+head(prediction_h2o)
+```
+
+```{r}
+cm <- confusionMatrix(as.factor(prediction_h2o$predict),as.factor( prediction_h2o$Outcome))
+cm
+```
+
+```{r}
+overall_accuracy <- cm$overall['Accuracy'] 
+# Calcular el error de entrenamiento como 1 - precisión
+train_error <- 1 - overall_accuracy
+# Imprimir el error de entrenamiento
+cat("Error de entrenamiento:", train_error, "\n")
+```
+
 # Solución XGboost
 
 ```{r}
-# train & test
 xgboost_train <- balanced_train
 xgboost_test <- unbalanced_test
 ```
 
 ```{r}
+# Se establece una técnica de train control
+train_control = trainControl(
+  method = "cv", # Tecnica CV se pasará al entrenamiento
+  number = 5,    # Es la 'k' en K-fold cross validation
+  search = "grid" # Busqueda por Grid
+  )
+```
+
+## Optimización de hiperparámetros
+
+Al introducir este modelo se puede ahondar un poco en los hiperparámetros elegidos.
+
+La optimización de hiperparámetros por grid search nos permite buscar la mejor combinacion posible.
+
+-   **`max_depth`**: Es la profundidad máxima permitida para cada árbol en el modelo. Si se establece en un número pequeño, como 3, el modelo tendrá árboles poco profundos y se evitará el sobreajuste. Si se establece en un número grande, como 7, se permitirán árboles más profundos y el modelo podría ser más preciso, pero también podría sobreajustarse más fácilmente.
+
+-   **`nrounds`**: Es el número de árboles que se crearán en el modelo. En este caso, se están probando diferentes números de árboles, desde 50 hasta 500, en incrementos de 50. Cuantos más árboles se creen, más preciso será el modelo, pero también podría tardar más tiempo en entrenarse.
+
+-   **`eta`**: También conocido como tasa de aprendizaje, controla la magnitud de la actualización de cada paso de descenso de gradiente. Un valor más bajo de eta significa que el modelo se ajustará más lentamente y de manera más suave, lo que podría ayudar a evitar el sobreajuste, pero también podría ralentizar la convergencia del modelo.
+
+-   **`gamma`**: Es un parámetro de regularización que controla cuánto se necesita que la función de pérdida disminuya para que se considere una división adicional en un nodo del árbol. Un valor más alto de gamma significa que se requerirá una disminución mayor en la función de pérdida para que se realice una división adicional, lo que podría ayudar a evitar el sobreajuste.
+
+-   **`subsample`**: Es la fracción de observaciones que se utilizan para entrenar cada árbol. Si se establece en 1, se utilizarán todas las observaciones, lo que podría conducir al sobreajuste. Si se establece en un número más pequeño, como 0.8, se utilizará una muestra aleatoria del 80% de las observaciones para entrenar cada árbol, lo que podría ayudar a evitar el sobreajuste.
+
+-   **`min_child_weight`**: Es el peso mínimo requerido para que un nodo se divida en dos. Si se establece en un número pequeño, como 1, se permitirán divisiones más pequeñas y detalladas, lo que podría conducir al sobreajuste. Si se establece en un número más grande, como 10, se requerirá un mayor peso mínimo para que se realice una división, lo que podría ayudar a evitar el sobreajuste.
+
+-   **`colsample_bytree`**: Es la fracción de características que se utilizan para entrenar cada árbol. Si se establece en 1, se utilizarán todas las características, lo que podría conducir al sobreajuste. Si se establece en un número más pequeño, como 0.6, se utilizará una muestra aleatoria del 60% de las características para entrenar cada árbol, lo que podría ayudar a evitar el sobreajuste.
+
+```{r}
+set.seed(50)
+# Customización de grid de hiperparámetros
+gbmGrid <-  expand.grid(max_depth = c(3, 5, 7), 
+                        nrounds = (1:10)*50,    # number of trees
+                        # default values below
+                        eta = 0.3,
+                        gamma = 0,
+                        subsample = 1,
+                        min_child_weight = 1,
+                        colsample_bytree = 0.6)
+```
+
+## Entrenamiento del modelo con datos balanceados de entrenamiento
+
+```{r setup, include=FALSE}
+options(warn=-1)
+model_xgboost_train = train(Outcome~., data = xgboost_train, method = "xgbTree", trControl = train_control, tuneGrid = gbmGrid)
 
 ```
 
-## Error de train y test
+```{r}
+print(model_xgboost_train)
+```
 
-# Solución H2o
-
-## Error de train y test
+```{r}
+#use model to make predictions on train data
+predicts_xgboost <- predict(model_xgboost_train, xgboost_test)
+caret::confusionMatrix (predicts_xgboost, xgboost_test$Outcome)
+```
 
 # Conclusiones
 
-El mejor modelo en este caso fue x porque y
+-   A continuación se presenta una tabla estatica que puede variar dependiendo de la ejecución
+
+| Modelo                   | Error datos desbalanceados Prueba | Error datos balanceados Entrenamiento |
+|-------------------|-------------------------|----------------------------|
+| Random Forest Tidymodels |                                   |                                       |
+|                          |                                   |                                       |
+| Random Forest H2o        |                                   |                                       |
 
 # Referencias
 
-Dataset: [Improve variables in data \| Kaggle](https://www.kaggle.com/datasets/whenamancodes/predict-diabities?sort=votes)
-[RPubs - Datos No Balanceados](https://rpubs.com/Diego_Cortes/749267)
-[Feature Selection with the Caret R Package - MachineLearningMastery.com](https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/)
-[11 Subsampling For Class Imbalances \| The caret Package (topepo.github.io)](https://topepo.github.io/caret/subsampling-for-class-imbalances.html)
-[BOXPLOT en R (Diagrama de Cajas y Bigotes) [GUÍA COMPLETA] (r-coder.com)](https://r-coder.com/boxplot-en-r/)
-[Introduction to DataExplorer (r-project.org)](https://cran.r-project.org/web/packages/DataExplorer/vignettes/dataexplorer-intro.html)
-[Remove Duplicate rows in R using Dplyr -- distinct () function - DataScience Made Simple](https://www.datasciencemadesimple.com/remove-duplicate-rows-r-using-dplyr-distinct-function/)
-[XGBoost R Tutorial --- xgboost 1.7.5 documentation](https://xgboost.readthedocs.io/en/stable/R-package/xgboostPresentation.html)
-
-
-
-
-
+Dataset: [Improve variables in data \| Kaggle](https://www.kaggle.com/datasets/whenamancodes/predict-diabities?sort=votes) [RPubs - Datos No Balanceados](https://rpubs.com/Diego_Cortes/749267) [Feature Selection with the Caret R Package - MachineLearningMastery.com](https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/) [11 Subsampling For Class Imbalances \| The caret Package (topepo.github.io)](https://topepo.github.io/caret/subsampling-for-class-imbalances.html) [BOXPLOT en R (Diagrama de Cajas y Bigotes) [GUÍA COMPLETA] (r-coder.com)](https://r-coder.com/boxplot-en-r/) [Introduction to DataExplorer (r-project.org)](https://cran.r-project.org/web/packages/DataExplorer/vignettes/dataexplorer-intro.html) [Remove Duplicate rows in R using Dplyr -- distinct () function - DataScience Made Simple](https://www.datasciencemadesimple.com/remove-duplicate-rows-r-using-dplyr-distinct-function/) [XGBoost R Tutorial --- xgboost 1.7.5 documentation](https://xgboost.readthedocs.io/en/stable/R-package/xgboostPresentation.html)
+[Beginners Tutorial on XGBoost and Parameter Tuning in R Tutorials & Notes \| Machine Learning \| HackerEarth](https://www.hackerearth.com/practice/machine-learning/machine-learning-algorithms/beginners-tutorial-on-xgboost-parameter-tuning-r/tutorial/)
