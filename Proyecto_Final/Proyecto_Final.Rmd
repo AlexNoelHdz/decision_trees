@@ -42,7 +42,7 @@ data <- read.csv("data/diabetes.csv")
 head(data)
 ```
 
-```{r setup, include=FALSE}
+```{r include=FALSE}
 # Carga de librerías
 library(tidymodels)
 library(tidyverse)
@@ -94,13 +94,13 @@ knitr::kable(summary(data))
 
 En continuación con el analis se puede observar que aparentemente no hay información perdida, esto es falso porque en algunas columnas el 0 significa que el valor no existe.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 plot_intro(data)
 ```
 
 ## Analisis de la distribución
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 plot_bar(data)
 ```
 
@@ -114,7 +114,7 @@ prop.table(table(data$Outcome))
 
 Aquí se ve con claridad que BloodPreassure, BMI, Glucose, Insulin and SkinThickness tienen datos faltantes catalogados como 0 y a simple vista se pueden apreciar como outliers.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 plot_histogram(data)
 ```
 
@@ -136,31 +136,31 @@ knitr::kable(kurtosis(data))
 
 Para la glucosa, los unicos atipicos parecen ser el 0, por lo que la sustitución se hará con la media.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 boxplot(data$Glucose, horizontal = TRUE)
 ```
 
 Para la BloodPressure, si se presentan algunos otros valores atípicos, por lo que la sustitución de faltantes será con mediana.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 boxplot(data$BloodPressure, horizontal = TRUE)
 ```
 
 Para el grosor de la piel, se tiene un atipico de 99 que podría afectar un poco, se decide usar la mediana para la sustitución de datos faltantes.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 boxplot(data$SkinThickness, horizontal = TRUE)
 ```
 
 En este caso se ve que existen muchos casos con 0, 374 para ser exactos. Esto no es válido ya que el rango comienza de nuevo en los 14. 0 son missing fields. Se cambia por la mediana.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 boxplot(data$Insulin, horizontal = TRUE)
 ```
 
 Para la BMI, si se presentan algunos otros valores atípicos, por lo que la sustitución de faltantes (el caso 0) será con mediana.
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 boxplot(data$BMI, horizontal = TRUE)
 ```
 
@@ -168,7 +168,7 @@ boxplot(data$BMI, horizontal = TRUE)
 
 Podemos encontrar correlaciones interesantes como la edad con el embarazo y la glucosa con el objeto de estudio, pero en esta última indica que es importante para el modelo. No cambios requeridos.
 
-```{r}
+```{r, fig.dim = c(10, 6)}
 plot_correlation(na.omit(data), maxcat = 5L)
 ```
 
@@ -224,7 +224,7 @@ head(count)
 
 Al revisar el histograma con los datos limpios, se puede observar que ya no está el problema de los datos faltantes
 
-```{r}
+```{r, fig.dim = c(8, 6)}
 plot_histogram(data_clean)
 ```
 
@@ -619,7 +619,7 @@ gbmGrid <-  expand.grid(max_depth = c(3, 5, 7),
 
 ## Entrenamiento del modelo con datos balanceados de entrenamiento
 
-```{r setup, include=FALSE}
+```{r include=FALSE}
 options(warn=-1)
 model_xgboost_train = train(Outcome~., data = xgboost_train, method = "xgbTree", trControl = train_control, tuneGrid = gbmGrid)
 
