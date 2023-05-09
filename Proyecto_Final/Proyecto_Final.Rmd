@@ -64,6 +64,7 @@ library(caTools)
 library(rpart.plot)
 library(tictoc)
 library(beepr)
+library(xgboost)
 ```
 
 # Exploración de datos
@@ -425,11 +426,21 @@ imp_var <- varImp(modelo_caret_rf, scale = FALSE) # calcular la importancia de l
 print(imp_var) # mostrar los resultados
 ```
 
-# Solución H2o
+# Solución XGboost
+
+```{r}
+# train & test
+xgboost_train <- balanced_train
+xgboost_test <- unbalanced_test
+```
+
+```{r}
+
+```
 
 ## Error de train y test
 
-# Solución Rpart
+# Solución H2o
 
 ## Error de train y test
 
@@ -440,3 +451,15 @@ El mejor modelo en este caso fue x porque y
 # Referencias
 
 Dataset: [Improve variables in data \| Kaggle](https://www.kaggle.com/datasets/whenamancodes/predict-diabities?sort=votes)
+[RPubs - Datos No Balanceados](https://rpubs.com/Diego_Cortes/749267)
+[Feature Selection with the Caret R Package - MachineLearningMastery.com](https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/)
+[11 Subsampling For Class Imbalances \| The caret Package (topepo.github.io)](https://topepo.github.io/caret/subsampling-for-class-imbalances.html)
+[BOXPLOT en R (Diagrama de Cajas y Bigotes) [GUÍA COMPLETA] (r-coder.com)](https://r-coder.com/boxplot-en-r/)
+[Introduction to DataExplorer (r-project.org)](https://cran.r-project.org/web/packages/DataExplorer/vignettes/dataexplorer-intro.html)
+[Remove Duplicate rows in R using Dplyr -- distinct () function - DataScience Made Simple](https://www.datasciencemadesimple.com/remove-duplicate-rows-r-using-dplyr-distinct-function/)
+[XGBoost R Tutorial --- xgboost 1.7.5 documentation](https://xgboost.readthedocs.io/en/stable/R-package/xgboostPresentation.html)
+
+
+
+
+
