@@ -166,8 +166,8 @@ plot_correlation(na.omit(data), maxcat = 5L)
 Es posible observar que no hay duplicados, ya que aplicando un distinct se obtienen la misma cantidad de rows.
 
 ```{r}
-data %>% distinct() %>% count()
-
+count <- data %>% distinct() %>% count()
+head(count)
 ```
 
 # Preprocesamiento
@@ -206,8 +206,18 @@ data_clean$BMI[data_clean$BMI==0]                     <- 32.0
 ```
 
 ```{r}
+# Revisar de nuevo duplicados
+count <- data_clean %>% distinct() %>% count()
+head(count)
+```
+
+Al revisar el histograma con los datos limpios, se puede observar que ya no está el problema de los datos faltantes
+
+```{r}
 plot_histogram(data_clean)
 ```
+
+Para confirmarlo, se puede mirar el summary. Los rangos ya están corregidos.
 
 ```{r}
 # Aqui  la diferencia al aplicar sustitución de datos faltantes
