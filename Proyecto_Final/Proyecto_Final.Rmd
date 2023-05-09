@@ -46,6 +46,7 @@ head(data)
 
 ```{r}
 # Load tidyverse
+library(tidymodels)
 library(tidyverse)
 library(dplyr) 
 library(skimr)
@@ -228,10 +229,32 @@ knitr::kable(summary(data_clean))
 
 La idea es entrenar con datos balanceados y hacer test con datos desbalanceados (Distribución en la realidad)
 
-```{r}
-datos_balanced <- downSample(data_clean[, -1], data_clean$Outcome) # submuestrear la clase mayoritaria
-datos_balanced
+Para esto
 
+-   Se Añade un index al conjunto completo de datos.
+
+-   Se divide en unbalanced_train (80) y unbalanced_test (20).
+
+-   Se balancea el balanced_train (80) con down Sample.
+
+-   Se entrena el modelo con balanced_train.
+
+```{r}
+tidy_split <- initial_split(data_clean, prop = 0.8, strata = "Outcome")
+
+unbalanced_train  <- training(tidy_split)
+unbalanced_test  <- testing(tidy_split)
+```
+
+```{r}
+balanced_train <- downSample(unbalanced_train[, -ncol(unbalanced_train)], unbalanced_train$Outcome, yname = "Outcome") # submuestrear la clase mayoritaria
+table(balanced_train$Outcome) 
+```
+
+Verificamos efectivamente los datos de train están perfectamente balanceados. Parece suficiente entrenar con 428 datos.
+
+```{r}
+prop.table(table(balanced_train$Outcome))
 ```
 
 # Solución random Forest
