@@ -42,10 +42,8 @@ data <- read.csv("data/diabetes.csv")
 head(data)
 ```
 
+```{r setup, include=FALSE}
 # Carga de librerías
-
-```{r}
-# Load tidyverse
 library(tidymodels)
 library(tidyverse)
 library(dplyr) 
@@ -303,6 +301,14 @@ def_workflow <- workflow() %>%  add_recipe(transformer) %>%
   add_model(model_tidy)
 ```
 
+## Hiperparámetros Tidymodels Random Forest
+
+Se escogen solamente estos 2, que ya dejan el modelo muy funcional.
+
+-   **`mtry`**: Es el número de variables aleatorias que se seleccionan para cada árbol. Si se establece en un número pequeño, se utilizarán menos variables para construir cada árbol, lo que podría conducir a una mayor variabilidad en el modelo. Si se establece en un número más grande, se utilizarán más variables, lo que podría mejorar la precisión del modelo, pero también podría hacer que el modelo se ajuste demasiado a los datos de entrenamiento. En este caso, se están probando diferentes valores de **`mtry`**, desde 3 hasta el número de columnas en el conjunto de datos menos uno.
+
+-   **`max.depth`**: Es la profundidad máxima permitida para cada árbol en el modelo. Si se establece en un número pequeño, como 3, el modelo tendrá árboles poco profundos y se evitará el sobreajuste. Si se establece en un número grande, como 10, se permitirán árboles más profundos y el modelo podría ser más preciso, pero también podría sobreajustarse más fácilmente. En este caso, se están probando diferentes valores de profundidad, desde 3 hasta 10.
+
 ```{r}
 grid_hiper <- expand_grid(
   # Numero de predictores que se muestrearán aleatoriamente en cada división al crear los modelos de árbol:
@@ -450,6 +456,18 @@ data_val_h2o <- as.h2o(x = unbalanced_train,destination_frame = "data_val_h2o")
 data_test_h2o <- as.h2o(x = unbalanced_test,destination_frame = "data_test_h2o")
 ```
 
+## Hiperparámetro H2o
+
+La optimización de hiperparámetros por Grid Search permite entrenar el modelo con diferentes combinaciones y escoger la mejor. Para random forest en H2o elegimos los siguientes:
+
+-   **`ntrees`**: Es el número de árboles que se crearán en el modelo. En este caso, se está iniciando con un solo árbol y luego se probarán diferentes números de árboles en el proceso de ajuste de hiperparámetros. Cuantos más árboles se creen, más preciso será el modelo, pero también podría tardar más tiempo en entrenarse.
+
+-   **`max_depth`**: Es la profundidad máxima permitida para cada árbol en el modelo. Si se establece en un número pequeño, como 1, el modelo tendrá árboles poco profundos y se evitará el sobreajuste. Si se establece en un número grande, como 20, se permitirán árboles más profundos y el modelo podría ser más preciso, pero también podría sobreajustarse más fácilmente. En este caso, se están probando diferentes valores de profundidad, desde 1 hasta 20, en incrementos de 3.
+
+-   **`min_rows`**: Es el número mínimo de observaciones que se permiten en un nodo del árbol. Si se establece en un número pequeño, como 2, se permitirán divisiones más pequeñas y detalladas, lo que podría conducir al sobreajuste. Si se establece en un número más grande, como 50, se requerirá un mayor número mínimo de observaciones para que se realice una división, lo que podría ayudar a evitar el sobreajuste. En este caso, se están probando diferentes valores de número mínimo de observaciones, desde 2 hasta 50, en incrementos de 3.
+
+-   **`sample_rate`**: Es la fracción de observaciones que se utilizan para entrenar cada árbol. Si se establece en 1, se utilizarán todas las observaciones, lo que podría conducir al sobreajuste. Si se establece en un número más pequeño, como 0.55, se utilizará una muestra aleatoria del 55% de las observaciones para entrenar cada árbol, lo que podría ayudar a evitar el sobreajuste. En este caso, se están probando diferentes valores de fracción de muestra, desde 0.55 hasta 0.75, en incrementos de 0.082.
+
 ```{r}
 # Grid de hiperparámetros h20
 grid_h2o_hyperpm <- list(ntrees = 1,
@@ -540,6 +558,8 @@ cm <- confusionMatrix(as.factor(prediction_h2o$predict),as.factor( prediction_h2
 cm
 ```
 
+## Error con datos balanceados de entrenamiento
+
 ```{r}
 overall_accuracy <- cm$overall['Accuracy'] 
 # Calcular el error de entrenamiento como 1 - precisión
@@ -609,10 +629,42 @@ model_xgboost_train = train(Outcome~., data = xgboost_train, method = "xgbTree",
 print(model_xgboost_train)
 ```
 
+## Predicciones con datos desbalanceados de prueba
+
+```{r}
+#use model to make predictions on test data
+predicts_xgboost <- predict(model_xgboost_train, xgboost_test)
+cm <- caret::confusionMatrix (predicts_xgboost, xgboost_test$Outcome)
+cm
+```
+
+## Error con datos desbalanceados de prueba
+
+```{r}
+overall_accuracy <- cm$overall['Accuracy'] 
+# Calcular el error de prueba como 1 - precisión
+test_error <- 1 - overall_accuracy
+# Imprimir el error de prueba
+cat("Error de prueba:", test_error, "\n")
+```
+
+## Predicciones con datos desbalanceados de entrenamiento
+
 ```{r}
 #use model to make predictions on train data
-predicts_xgboost <- predict(model_xgboost_train, xgboost_test)
-caret::confusionMatrix (predicts_xgboost, xgboost_test$Outcome)
+predicts_xgboost <- predict(model_xgboost_train, xgboost_train)
+cm <- caret::confusionMatrix (predicts_xgboost, xgboost_train$Outcome)
+cm
+```
+
+## Error con datos desbalanceados de entenamiento
+
+```{r}
+overall_accuracy <- cm$overall['Accuracy'] 
+# Calcular el error de entrenamiento como 1 - precisión
+train_error <- 1 - overall_accuracy
+# Imprimir el error de entrenamiento
+cat("Error de entrenamiento:", train_error, "\n")
 ```
 
 # Conclusiones
@@ -621,9 +673,15 @@ caret::confusionMatrix (predicts_xgboost, xgboost_test$Outcome)
 
 | Modelo                   | Error datos desbalanceados Prueba | Error datos balanceados Entrenamiento |
 |-------------------|-------------------------|----------------------------|
-| Random Forest Tidymodels |                                   |                                       |
-|                          |                                   |                                       |
-| Random Forest H2o        |                                   |                                       |
+| Random Forest Tidymodels | 0.2662338                         | 0.1962617                             |
+| XGBoost                  | 0.2597403                         | 0.03738318                            |
+| Random Forest H2o        | 0.3051948                         | 0.2313084                             |
+
+Al hacer la comparativa, tiene un performance interesante con datos balanceados tidymodels, pero se comporta mejor con datos desbalanceados XGBoost random forest.
+
+Según el estudio, las variables con mayor importancia para conocer si un paciente tiene o no diabetes son la Glucosa, el indice de masa corportal y la edad.
+
+En el presente estudio se aplicó ingeniería de características para sustituir los datos faltantes, se aplicarón técnicas de sampling, optimización de hiperparámetros por grid search y una exploración de datos estratégica.
 
 # Referencias
 
