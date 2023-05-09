@@ -1,0 +1,260 @@
+---
+title: "Proyecto Final Analítica basada en árboles de clasificación y regresión"
+author: "Alejandro Noel Hernández Gutiérrez"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Proyecto Final}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Descripción del problema
+
+El set de datos tiene su origen en el National Institute of Diabetes and Digestive and Kidney
+
+Diseases.
+
+El objetivo del presente proyecto es predecir si un paciente tiene diabetes utilizando random forest y arboles de clasificación de 3 paqueterías diferentes.
+
+El set de datos está acotado a mujeres con al menos 21 años de edad pertenecientes a una etnia en la India.
+
+La variable target o independiente es outcome, que indica que el paciente tiene diabetes.
+
+## Descripción del conjunto de datos
+
+| Columnas                 | Descripción                                                                                                                                                                                                                                                                | Clases-rango   |
+|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------|
+| Pregnancies              | Número de embarazos                                                                                                                                                                                                                                                        | 0-17           |
+| Glucose                  | Nivel de glucosa en la sangre. No es probable glucosa 0 a menos que este muerta (Consultado con lic. Maria Fernanda Hernandez Jimenez, estudiante de medicina de la Universidad de Guadalajara). Por este motivo hay que sustituir los valores faltantes con algun método. | 0-199.         |
+| BloodPressure            | Presión arterial en mm/Hg. No es probable presión arteríal 0 a menos que la paciente esté muerta.                                                                                                                                                                          | 0-122.         |
+| SkinThickness            | Grosor de la piel en mm. No es probable SkinThickness 0.                                                                                                                                                                                                                   | 0-99.          |
+| Insulin                  | Nivel de insulina en la sangre en U/mL. Unidades entre minilitro el valor 0 no es válido.                                                                                                                                                                                  | 0-846          |
+| BMI                      | Indice de masa corporal en kg/m2. 0 no tiene sentido.                                                                                                                                                                                                                      | 0-67.10.       |
+| DiabetesPedigreeFunction | Probabilidad de diabetes en función de los antecedentes familiares.                                                                                                                                                                                                        | 0.0780-2.4200  |
+| Age                      | Edad de la persona.                                                                                                                                                                                                                                                        | 21-81          |
+| Outcome                  | Determina si el paciente tiene o no diabetes.                                                                                                                                                                                                                              | [1: si, 0: no] |
+
+# Obtención de datos
+
+```{r}
+data <- read.csv("data/diabetes.csv")
+head(data)
+```
+
+# Carga de librerías
+
+```{r}
+# Load tidyverse
+library(tidyverse)
+library(dplyr) 
+library(skimr)
+library(DataExplorer)
+library(moments) # kurtosis and skewness
+library(ggplot2)
+library(caret)
+```
+
+# Exploración de datos
+
+## Summary
+
+Pregnancies: La media de los embarazos es de 3. El rango es de 0-17.
+
+Glucose: La media es de 120.9. El rango es de 0-199, se intuye que 0 representa información perdida y se reemplazará por la media.
+
+BloodPressure: La media es de 69.11. El rango es de 0-122. Se intuye que el 0 representa información perdida, se estudiará el caso a continuación. Se observa que generalmente si falta este dato es muy probable que falte la insulina y el grosor de piel (SkinThickness)
+
+SkinThickness La media es de 20.54mm y el rango de 0-99. Nadie puede tener grosor de piel de 0, por lo que habrá que revisar ese dato.
+
+Insulina: La media es de 79.8 y el rango es de 0-846.
+
+BMI: La mediana es 31.99 y el rango es de 0-67.10.
+
+DiabetesPedigreeFunction: La media es de 0.4719 y el rango es de 0.0780-2.4200.
+
+Age: La media es de 33.24 y el rango es de 21- 81 años.
+
+```{r}
+knitr::kable(summary(data))
+```
+
+## Skim
+
+Con la función skim es posible ver que el número de datos que se tienen es de 768, así como un recap de algunas métricas.
+
+```{r}
+skim_data  <- skim(data)
+knitr::kable(skim_data)
+```
+
+## Plot intro
+
+En continuación con el analis se puede observar que aparentemente no hay información perdida, esto es falso porque en algunas columnas el 0 significa que el valor no existe.
+
+```{r}
+plot_intro(data)
+```
+
+## Analisis de la distribución
+
+```{r}
+plot_bar(data)
+```
+
+En este caso notamos que los datos tienen buen balance. De cualquier manera se utilizará más adelante submuestreo para entrenar con datos completamente balanceados.
+
+```{r}
+prop.table(table(data$Outcome))
+```
+
+## Distribución de variables continuas por medio de histograma
+
+Aquí se ve con claridad que BloodPreassure, BMI, Glucose, Insulin and SkinThickness tienen datos faltantes catalogados como 0 y a simple vista se pueden apreciar como outliers.
+
+```{r}
+plot_histogram(data)
+```
+
+![](http://127.0.0.1:45971/chunk_output/604BF104957fe0a5/46C9959A/ce9qwgf9b0uit/000010.png)
+
+## Kurtosis
+
+Continuando con el análisis de missing fields, se procede a explorar la distribución de los datos. Una distribución uniforme (o kurtosis menor que 1.2) sería candidata a sustitución aleatoria.
+
+Si la distribución resulta ser normal, se procede a buscar valores atipicos. Si no los hay se usa la media, si los hay se usa la mediana porque la media se puede ver afectada.
+
+De la siguiente tabla se infiere que no hay distribución uniforme. Resta revisar los atípicos para decidir.
+
+```{r}
+knitr::kable(kurtosis(data))
+```
+
+## Boxplot con relación a la variable target
+
+Para la glucosa, los unicos atipicos parecen ser el 0, por lo que la sustitución se hará con la media.
+
+```{r}
+boxplot(data$Glucose, horizontal = TRUE)
+```
+
+Para la BloodPressure, si se presentan algunos otros valores atípicos, por lo que la sustitución de faltantes será con mediana.
+
+```{r}
+boxplot(data$BloodPressure, horizontal = TRUE)
+```
+
+Para el grosor de la piel, se tiene un atipico de 99 que podría afectar un poco, se decide usar la mediana para la sustitución de datos faltantes.
+
+```{r}
+boxplot(data$SkinThickness, horizontal = TRUE)
+```
+
+En este caso se ve que existen muchos casos con 0, 374 para ser exactos. Esto no es válido ya que el rango comienza de nuevo en los 14. 0 son missing fields. Se cambia por la mediana.
+
+```{r}
+boxplot(data$Insulin, horizontal = TRUE)
+```
+
+Para la BMI, si se presentan algunos otros valores atípicos, por lo que la sustitución de faltantes (el caso 0) será con mediana.
+
+```{r}
+boxplot(data$BMI, horizontal = TRUE)
+```
+
+## Análisis de correlación
+
+Podemos encontrar correlaciones interesantes como la edad con el embarazo y la glucosa con el objeto de estudio, pero en esta última indica que es importante para el modelo. No cambios requeridos.
+
+```{r}
+plot_correlation(na.omit(data), maxcat = 5L)
+```
+
+## Duplicados
+
+Es posible observar que no hay duplicados, ya que aplicando un distinct se obtienen la misma cantidad de rows.
+
+```{r}
+data %>% distinct() %>% count()
+
+```
+
+# Preprocesamiento
+
+En este paso vamos a hacegurarnos que las variables estén en el tipo de dato necesario para el procesamiento.
+
+```{r}
+data <- data %>% mutate(Pregnancies      = Pregnancies %>% as.numeric(),
+                    Glucose          = Glucose %>% as.numeric(),
+                    SkinThickness    = SkinThickness %>% as.numeric(),
+                    Insulin          = Insulin %>% as.numeric(),
+                    BMI              = BMI %>% as.numeric(),
+                    DiabetesPedigreeFunction = DiabetesPedigreeFunction %>% as.numeric(),
+                    Age              = Age %>% as.numeric(),
+                    Outcome = Outcome %>% as.factor())
+```
+
+# Limpieza de datos
+
+Como fue explorado en el capitulo anterior, para algunas variables se utilizará la media y para otras la mediana.
+
+```{r}
+# Lo ya visto:
+#Glucosa, media. 120.9
+#BloodPressure, mediana. 72.0
+#SkinThickness, mediana. 23.0
+#Insulin, mediana. 30.5
+#BMI, mediana. 32.0
+
+data_clean <- data
+data_clean$Glucose[data_clean$Glucose==0]             <- 120.9
+data_clean$BloodPressure[data_clean$BloodPressure==0] <- 72.0
+data_clean$SkinThickness[data_clean$SkinThickness==0] <- 23.0
+data_clean$Insulin[data_clean$Insulin == 0]           <- 30.5
+data_clean$BMI[data_clean$BMI==0]                     <- 32.0
+```
+
+```{r}
+plot_histogram(data_clean)
+```
+
+```{r}
+# Aqui  la diferencia al aplicar sustitución de datos faltantes
+knitr::kable(summary(data_clean))
+```
+
+# Subsampling
+
+La idea es entrenar con datos balanceados y hacer test con datos desbalanceados (Distribución en la realidad)
+
+```{r}
+datos_balanced <- downSample(data_clean[, -1], data_clean$Outcome) # submuestrear la clase mayoritaria
+datos_balanced
+
+```
+
+# Solución random Forest
+
+## Importancia de las variables
+
+## Error de train y test
+
+# Solución H2o
+
+## Error de train y test
+
+# Solución random forest
+
+## Error de train y test
+
+# Solución Rpart
+
+## Error de train y test
+
+# Conclusiones
+
+El mejor modelo en este caso fue x porque y
+
+# Referencias
+
+Dataset: [Improve variables in data \| Kaggle](https://www.kaggle.com/datasets/whenamancodes/predict-diabities?sort=votes)
