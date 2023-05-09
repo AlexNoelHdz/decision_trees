@@ -24,7 +24,7 @@ La variable target o independiente es outcome, que indica que el paciente tiene 
 ## Descripción del conjunto de datos
 
 | Columnas                 | Descripción                                                                                                                                                                                                                                                                | Clases-rango   |
-|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------|
+|----------|----------------------------------------------------|----------|
 | Pregnancies              | Número de embarazos                                                                                                                                                                                                                                                        | 0-17           |
 | Glucose                  | Nivel de glucosa en la sangre. No es probable glucosa 0 a menos que este muerta (Consultado con lic. Maria Fernanda Hernandez Jimenez, estudiante de medicina de la Universidad de Guadalajara). Por este motivo hay que sustituir los valores faltantes con algun método. | 0-199.         |
 | BloodPressure            | Presión arterial en mm/Hg. No es probable presión arteríal 0 a menos que la paciente esté muerta.                                                                                                                                                                          | 0-122.         |
@@ -77,15 +77,6 @@ Age: La media es de 33.24 y el rango es de 21- 81 años.
 
 ```{r}
 knitr::kable(summary(data))
-```
-
-## Skim
-
-Con la función skim es posible ver que el número de datos que se tienen es de 768, así como un recap de algunas métricas.
-
-```{r}
-skim_data  <- skim(data)
-knitr::kable(skim_data)
 ```
 
 ## Plot intro
