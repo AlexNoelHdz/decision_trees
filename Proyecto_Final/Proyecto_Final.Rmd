@@ -54,6 +54,16 @@ library(DataExplorer)
 library(moments) # kurtosis and skewness
 library(ggplot2)
 library(caret)
+library(rpart)
+library(kableExtra)
+library(ggthemes)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(caTools)
+library(rpart.plot)
+library(tictoc)
+library(beepr)
 ```
 
 # Exploración de datos
@@ -259,15 +269,163 @@ prop.table(table(balanced_train$Outcome))
 
 # Solución random Forest
 
-## Importancia de las variables
+```{r}
+tidy_train <- balanced_train
+tidy_test <- unbalanced_test
+```
 
-## Error de train y test
+```{r}
+model_tidy<- rand_forest(
+  mode = "classification",
+  mtry = tune(),# hiperparámetros de los features que tenemos N-1 (flag)
+  trees = 4 # Random Forest trees
+) %>%  set_engine(engine = "ranger",
+                  max.depth = tune(),
+                  importance = "none", #"impurity"
+                  seed = 123 )
+```
+
+```{r}
+# preprocesado de datos
+transformer <- recipe(formula = Outcome ~.,
+                      data = tidy_train)
+
+# Validación cruzada 
+cv_folds <- vfold_cv(data = tidy_train,
+                     v = 5,
+                     strata = Outcome)
+  
+
+# Workflow. Aqui si hay que cuidar nombre de hiperparámetros en la grid
+def_workflow <- workflow() %>%  add_recipe(transformer) %>% 
+  add_model(model_tidy)
+```
+
+```{r}
+grid_hiper <- expand_grid(
+  # Numero de predictores que se muestrearán aleatoriamente en cada división al crear los modelos de árbol:
+                    'mtry' = c(3,5,7, ncol(df)-1), 
+                    'max.depth' = c(3,5,7,10)) # máxima profundidad
+head(grid_hiper)
+```
+
+```{r}
+# Tunning del grid
+grid_fit <- tune_grid(
+  object = def_workflow,
+  resamples = cv_folds, # validación cruzada
+  metrics = metric_set(roc_auc,accuracy), 
+  grid = grid_hiper
+)
+```
+
+```{r}
+# Mostramos del grid la mejor configuración utilizado la curva roc
+show_best(grid_fit,metric = "roc_auc", n=1)
+```
+
+```{r}
+best_hiper <- select_best(grid_fit, metric = 'roc_auc')
+# Definir MODELO FINAL
+final_model_tidy <- finalize_workflow(
+  x = def_workflow,
+  parameters = best_hiper) %>% 
+  fit(data = tidy_train) %>% extract_fit_parsnip()
+```
+
+## Predicciones con datos balanceados de test
+
+```{r}
+# Prediccciones con 
+predicts_tidy <- final_model_tidy %>% predict(new_data = tidy_test) # SI/NO
+
+# Agregarle una columna al lado
+predicts_tidy <- predicts_tidy %>% bind_cols(tidy_test %>% select(Outcome))
+# efectividad del modelo
+accuracy_metric <- accuracy(data = predicts_tidy,
+                            truth = 'Outcome',
+                            estimate = '.pred_class',
+                            na_rm = TRUE # no tomar en cuenta NAs
+                            )
+accuracy_metric
+```
+
+## Confusión Matrix de datos balanceados de test
+
+```{r}
+# Matriz de confusión
+# en el caso de no, se equivoca en 9 tiendas. En el caso de si, se equivoca en 10
+confu_mat <- conf_mat(
+  data = predicts_tidy,
+  truth = 'Outcome',
+  estimate = '.pred_class'
+  )
+confu_mat
+```
+
+## Error de test
+
+```{r}
+# Calcular el error de prueba como 1 - precisión
+test_error <- 1 - 0.75324
+
+# Imprimir el error de prueba
+cat("Error de prueba:", test_error, "\n")
+```
+
+## Predicciones con datos desbalanceados de train
+
+```{r}
+# Prediccciones con 
+predicts_tidy <- final_model_tidy %>% predict(new_data = tidy_train) # SI/NO
+
+# Agregarle una columna al lado
+predicts_tidy <- predicts_tidy %>% bind_cols(tidy_train %>% select(Outcome))
+
+# efectividad del modelo
+accuracy_metric <- accuracy(data = predicts_tidy,
+                            truth = 'Outcome',
+                            estimate = '.pred_class',
+                            na_rm = TRUE # no tomar en cuenta NAs
+                            )
+accuracy_metric
+```
+
+## Confusión matrix con datos desbalanceados de train
+
+```{r}
+# Matriz de confusión
+# en el caso de no, se equivoca en 9 tiendas. En el caso de si, se equivoca en 10
+confu_mat <- conf_mat(
+  data = predicts_tidy,
+  truth = 'Outcome',
+  estimate = '.pred_class'
+  )
+confu_mat
+```
+
+## Error de train
+
+```{r}
+# Calcular el error de prueba como 1 - precisión
+train_error <- 1 - 0.78738
+
+# Imprimir el error de entrenamiento
+cat("Error de entrenamiento:", train_error, "\n")
+```
+
+# Importancia de las variables
+
+En el análisis de importancia de las variables podemos ver que la glucosa, el indice de masa corporal, la edad son muy relevantes para el objeto de estudio.
+
+```{r}
+modelo_caret_rf <- train(Outcome ~ ., data = balanced_train, method = "rf") # Random Forest simple caret
+
+imp_var <- varImp(modelo_caret_rf, scale = FALSE) # calcular la importancia de las variables
+print(imp_var) # mostrar los resultados
+```
 
 # Solución H2o
-
-## Error de train y test
-
-# Solución random forest
 
 ## Error de train y test
 
