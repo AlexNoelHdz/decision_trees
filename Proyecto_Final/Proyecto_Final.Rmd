@@ -64,6 +64,7 @@ library(tictoc)
 library(beepr)
 library(xgboost)
 library(h2o)
+library(scales)
 ```
 
 # Exploración de datos
@@ -379,7 +380,7 @@ accuracy_ <- accuracy_metric$.estimate
 test_error <- 1 - accuracy_
 
 # Imprimir el error de prueba
-cat("Error de prueba:", test_error, "\n")
+cat("Error de prueba:", percent(test_error), "\n")
 ```
 
 ## Predicciones con datos balanceados de train
@@ -421,7 +422,7 @@ accuracy_ <- accuracy_metric$.estimate
 train_error <- 1 - accuracy_
 
 # Imprimir el error de entrenamiento
-cat("Error de entrenamiento:", train_error, "\n")
+cat("Error de entrenamiento:", percent(train_error), "\n")
 ```
 
 # Importancia de las variables
@@ -443,6 +444,7 @@ h2o.init(ip = 'localhost',
          nthreads = -1, # -1 indica que se emplean todos los cores disponibles
          max_mem_size = '6g' # máxima memoria disponible para el cluster
 )
+h2o.no_progress()
 ```
 
 ```{r}
@@ -538,7 +540,7 @@ overall_accuracy <- cm$overall['Accuracy']
 # Calcular el error de prueba como 1 - precisión
 test_error <- 1 - overall_accuracy
 # Imprimir el error de prueba
-cat("Error de prueba:", test_error, "\n")
+cat("Error de prueba:", percent(test_error), "\n")
 ```
 
 ## Predicciones con datos balanceados de train
@@ -565,7 +567,7 @@ overall_accuracy <- cm$overall['Accuracy']
 # Calcular el error de entrenamiento como 1 - precisión
 train_error <- 1 - overall_accuracy
 # Imprimir el error de entrenamiento
-cat("Error de entrenamiento:", train_error, "\n")
+cat("Error de entrenamiento:", percent(train_error), "\n")
 ```
 
 # Solución XGboost
@@ -645,7 +647,7 @@ overall_accuracy <- cm$overall['Accuracy']
 # Calcular el error de prueba como 1 - precisión
 test_error <- 1 - overall_accuracy
 # Imprimir el error de prueba
-cat("Error de prueba:", test_error, "\n")
+cat("Error de prueba:", percent(test_error), "\n")
 ```
 
 ## Predicciones con datos desbalanceados de entrenamiento
@@ -664,18 +666,18 @@ overall_accuracy <- cm$overall['Accuracy']
 # Calcular el error de entrenamiento como 1 - precisión
 train_error <- 1 - overall_accuracy
 # Imprimir el error de entrenamiento
-cat("Error de entrenamiento:", train_error, "\n")
+cat("Error de entrenamiento:", percent(train_error), "\n")
 ```
 
 # Conclusiones
 
--   A continuación se presenta una tabla estatica que puede variar dependiendo de la ejecución
+-   A continuación se presenta una tabla estatica que puede variar dependiendo de la ejecución. Los datos aquí presentes son en la ejecución del 2023-05-14 05:14 p.m.
 
 | Modelo                   | Error datos desbalanceados Prueba | Error datos balanceados Entrenamiento |
 |-------------------|-------------------------|----------------------------|
-| Random Forest Tidymodels | 0.2662338                         | 0.1962617                             |
-| XGBoost                  | 0.2597403                         | 0.03738318                            |
-| Random Forest H2o        | 0.3051948                         | 0.2313084                             |
+| Random Forest Tidymodels | 26.62%                            | 19.62%                                |
+| XGBoost                  | 25.97%                            | 37.38%                                |
+| Random Forest H2o        | 30.51%                            | 23.13%                                |
 
 Al hacer la comparativa, tiene un performance interesante con datos balanceados tidymodels, pero se comporta mejor con datos desbalanceados XGBoost random forest.
 
